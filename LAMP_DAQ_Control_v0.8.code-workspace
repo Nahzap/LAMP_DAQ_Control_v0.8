@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": ".."
+		},
+		{
+			"path": "../../SDK_Advantech"
+		},
+		{
+			"path": "../../../Advantech/DAQNavi"
+		}
+	],
+	"settings": {}
+}

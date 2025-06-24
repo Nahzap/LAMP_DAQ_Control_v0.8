@@ -1,0 +1,191 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Xml;
+using Automation.BDaq;
+using System.Threading.Tasks;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using LAMP_DAQ_Control_v0._8.Core;
+
+namespace LAMP_DAQ_Control_v0._8
+{
+    public class DAQController : IDisposable
+    {
+        private object _device;  // Can be Automation.BDaq.InstantAoCtrl, Automation.BDaq.InstantDiCtrl, or Automation.BDaq.InstantDoCtrl
+        private bool _deviceInitialized = false;
+        private bool _disposed = false;
+        private readonly SignalGenerator _signalGenerator;
+        private DAQDeviceType _deviceType;
+        private readonly DeviceInformation _deviceInfo;
+        
+        // Propiedades públicas
+        public DAQDeviceType DeviceType => _deviceType;
+        public bool IsGeneratingSignal => _signalGenerator?.IsRunning ?? false;
+        
+        public enum DAQDeviceType
+        {
+            Unknown,
+            PCIe1824,  // Tarjeta analógica
+            PCI1735U   // Tarjeta digital con contadores
+        }
+        
+        public int DeviceIndex { get; private set; } = 0;
+        
+        // ... [rest of the file remains the same until the DetectAllDevices method]
+        
+        public List<(int Index, string Description, DAQDeviceType Type)> DetectAllDevices()
+        {
+            var devices = new List<(int, string, DAQDeviceType)>();
+            Console.WriteLine("\nIniciando detección de dispositivos...");
+            
+            // Diccionario para evitar duplicados (índice, descripción)
+            var foundDevices = new Dictionary<int, string>();
+            
+            // Función auxiliar para agregar dispositivos sin duplicados
+            void AddDeviceIfNew(int index, string description, DAQDeviceType type)
+            {
+                if (!foundDevices.ContainsKey(index))
+                {
+                    foundDevices[index] = description;
+                    devices.Add((index, description, type));
+                }
+            }
+            
+            // 1. Buscar dispositivos de salida analógica (AO)
+            Console.WriteLine("\nBuscando dispositivos de salida analógica...");
+            try
+            {
+                using (var ctrl = new Automation.BDaq.InstantAoCtrl())
+                {
+                    for (int i = 0; i < 8; i++)
+                    {
+                        try
+                        {
+                            ctrl.SelectedDevice = new DeviceInformation(i);
+                            string description = ctrl.SelectedDevice.Description ?? "Sin descripción";
+                            
+                            Console.WriteLine($"  - Índice {i}: {description}");
+                            
+                            if (description.Contains("PCIE-1824") || description.Contains("1824"))
+                            {
+                                Console.WriteLine("    Tipo: PCIe-1824 (Dispositivo Analógico)");
+                                AddDeviceIfNew(i, description, DAQDeviceType.PCIe1824);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"    Error en índice {i}: {ex.GetType().Name}");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al buscar dispositivos analógicos: {ex.Message}");
+            }
+            
+            // 2. Buscar dispositivos de entrada digital (DI)
+            Console.WriteLine("\nBuscando dispositivos de entrada digital...");
+            try
+            {
+                using (var ctrl = new Automation.BDaq.InstantDiCtrl())
+                {
+                    for (int i = 0; i < 8; i++)
+                    {
+                        try
+                        {
+                            ctrl.SelectedDevice = new DeviceInformation(i);
+                            string description = ctrl.SelectedDevice.Description ?? "Sin descripción";
+                            
+                            // Solo mostrar si no hemos visto este dispositivo antes
+                            if (!foundDevices.ContainsKey(i))
+                            {
+                                Console.WriteLine($"  - Índice {i}: {description}");
+                                
+                                if (description.Contains("PCI-1735U") || description.Contains("1735U") || description.Contains("1735"))
+                                {
+                                    Console.WriteLine("    Tipo: PCI-1735U (Dispositivo Digital con Contadores)");
+                                    AddDeviceIfNew(i, description, DAQDeviceType.PCI1735U);
+                                }
+                                else if (!string.IsNullOrWhiteSpace(description) && !description.Contains("Sin descripción"))
+                                {
+                                    Console.WriteLine("    Tipo: Desconocido (Dispositivo no reconocido)");
+                                    AddDeviceIfNew(i, description, DAQDeviceType.Unknown);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // Ignorar errores de dispositivos no encontrados
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al buscar dispositivos digitales: {ex.Message}");
+            }
+            
+            // 3. Buscar dispositivos de salida digital (DO)
+            Console.WriteLine("\nBuscando dispositivos de salida digital...");
+            try
+            {
+                using (var ctrl = new Automation.BDaq.InstantDoCtrl())
+                {
+                    for (int i = 0; i < 8; i++)
+                    {
+                        try
+                        {
+                            ctrl.SelectedDevice = new DeviceInformation(i);
+                            string description = ctrl.SelectedDevice.Description ?? "Sin descripción";
+                            
+                            // Solo mostrar si no hemos visto este dispositivo antes
+                            if (!foundDevices.ContainsKey(i))
+                            {
+                                Console.WriteLine($"  - Índice {i}: {description}");
+                                
+                                if (description.Contains("PCI-1735U") || description.Contains("1735U") || description.Contains("1735"))
+                                {
+                                    Console.WriteLine("    Tipo: PCI-1735U (Dispositivo Digital con Contadores)");
+                                    AddDeviceIfNew(i, description, DAQDeviceType.PCI1735U);
+                                }
+                                else if (!string.IsNullOrWhiteSpace(description) && !description.Contains("Sin descripción"))
+                                {
+                                    Console.WriteLine("    Tipo: Desconocido (Dispositivo no reconocido)");
+                                    AddDeviceIfNew(i, description, DAQDeviceType.Unknown);
+                                }
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            // Ignorar errores de dispositivos no encontrados
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al buscar dispositivos de salida digital: {ex.Message}");
+            }
+            
+            Console.WriteLine($"\nDetección completada. Se encontraron {devices.Count} dispositivo(s) compatible(s).");
+            return devices;
+        }
+        
+        // ... [rest of the file remains the same]
+    }
+    
+    public class DeviceInfo
+    {
+        public string Name { get; set; }
+        public int Channels { get; set; }
+
+        public DeviceInfo(string name, int channels)
+        {
+            Name = name;
+            Channels = channels;
+        }
+    }
+}
