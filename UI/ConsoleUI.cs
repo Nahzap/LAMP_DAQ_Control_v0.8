@@ -1,9 +1,18 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Threading.Tasks;
 using LAMP_DAQ_Control_v0._8.Core;
 
 namespace LAMP_DAQ_Control_v0._8.UI
 {
+    public class DAQDevice
+    {
+        public string Id { get; set; }
+        public string Name { get; set; }
+        public string ConfigFile { get; set; }
+        public bool IsConnected { get; set; }
+    }
     public class ConsoleUI
     {
         private readonly DAQController _controller;
@@ -15,26 +24,129 @@ namespace LAMP_DAQ_Control_v0._8.UI
         
         public async Task Run()
         {
-            Console.WriteLine("=== Controlador DAQ PCIe-1824 ===\n");
-            _controller.Initialize("PCIe1824_prof_v1.xml");
-            await ShowMenu();
+            bool exitApplication = false;
+            
+            while (!exitApplication)
+            {
+                Console.Clear();
+                Console.WriteLine("=== Controlador DAQ ===\n");
+                
+                // Detectar tarjetas DAQ disponibles
+                var devices = DetectDAQDevices();
+                
+                if (devices.Count == 0)
+                {
+                    Console.WriteLine("No se encontraron tarjetas DAQ conectadas.");
+                    Console.WriteLine("Presione cualquier tecla para salir...");
+                    Console.ReadKey();
+                    return;
+                }
+                
+                // Mostrar menú de selección de tarjeta
+                var selectedDevice = await SelectDevice(devices);
+                if (selectedDevice == null)
+                {
+                    Console.WriteLine("Saliendo...");
+                    return;
+                }
+                
+                // Inicializar la tarjeta seleccionada
+                try
+                {
+                    Console.WriteLine($"\nInicializando {selectedDevice.Name}...");
+                    _controller.Initialize(selectedDevice.ConfigFile);
+                    await ShowMenu(selectedDevice);
+                    
+                    // Si llegamos aquí, el usuario eligió volver al menú de selección
+                    // El bucle continuará y mostrará el menú de selección de nuevo
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"\nError al inicializar {selectedDevice.Name}: {ex.Message}");
+                    if (ex.InnerException != null)
+                    {
+                        Console.WriteLine($"DETALLES: {ex.InnerException.Message}");
+                    }
+                    Console.WriteLine("\nPresione cualquier tecla para volver al menú...");
+                    Console.ReadKey();
+                }
+            }
+
         }
         
-        private async Task ShowMenu()
+        private List<DAQDevice> DetectDAQDevices()
+        {
+            var devices = new List<DAQDevice>();
+            
+            // Verificar si hay una tarjeta PCIe-1824 disponible
+            if (File.Exists("PCIe1824_prof_v1.xml"))
+            {
+                devices.Add(new DAQDevice
+                {
+                    Id = "PCIE-1824,BID#0",
+                    Name = "PCIe-1824 (Estándar)",
+                    ConfigFile = "PCIe1824_prof_v1.xml",
+                    IsConnected = true
+                });
+            }
+            
+            // Aquí se podrían agregar más dispositivos en el futuro
+            
+            return devices;
+        }
+        
+        private async Task<DAQDevice> SelectDevice(List<DAQDevice> devices)
+        {
+            while (true)
+            {
+                Console.Clear();
+                Console.WriteLine("=== Tarjetas DAQ detectadas ===\n");
+                
+                for (int i = 0; i < devices.Count; i++)
+                {
+                    var status = devices[i].IsConnected ? "[CONECTADA]" : "[NO CONECTADA]";
+                    Console.WriteLine($"{i + 1}. {devices[i].Name} {status}");
+                }
+                Console.WriteLine($"{devices.Count + 1}. Salir");
+                
+                Console.Write("\nSeleccione una tarjeta: ");
+                if (int.TryParse(Console.ReadLine(), out int selection))
+                {
+                    if (selection > 0 && selection <= devices.Count)
+                    {
+                        var selected = devices[selection - 1];
+                        if (selected.IsConnected)
+                        {
+                            return selected;
+                        }
+                        Console.WriteLine("\nLa tarjeta seleccionada no está conectada.");
+                    }
+                    else if (selection == devices.Count + 1)
+                    {
+                        return null;
+                    }
+                }
+                
+                Console.WriteLine("\nOpción no válida. Presione cualquier tecla para continuar...");
+                Console.ReadKey();
+            }
+        }
+        
+        private async Task ShowMenu(DAQDevice device)
         {
             bool exit = false;
             
             while (!exit)
             {
                 Console.Clear();
-                Console.WriteLine("=== Control de DAQ PCIe-1824 (MODO SENO) ===");
+                Console.WriteLine($"=== Control de {device.Name} ===");
                 Console.WriteLine("1. Establecer valor DC en un canal");
                 Console.WriteLine("2. Realizar rampa en un canal");
                 Console.WriteLine("3. Generar señal senoidal");
                 Console.WriteLine("4. Detener generación de señal");
                 Console.WriteLine("5. Mostrar información del dispositivo");
                 Console.WriteLine("6. Reiniciar todos los canales a 0V");
-                Console.WriteLine("7. Salir");
+                Console.WriteLine("7. Volver a la selección de tarjeta");
                 Console.Write("\nSeleccione una opción: ");
                 
                 var option = Console.ReadLine();
@@ -64,8 +176,8 @@ namespace LAMP_DAQ_Control_v0._8.UI
                             Console.WriteLine("\nTodos los canales han sido reiniciados a 0V.");
                             break;
                         case "7":
-                            exit = true;
-                            break;
+                            // Volver al menú de selección de tarjeta
+                            return; // Esto hará que el método ShowMenu termine y el control vuelva al método Run
                         default:
                             Console.WriteLine("\nOpción no válida. Por favor, intente de nuevo.");
                             break;

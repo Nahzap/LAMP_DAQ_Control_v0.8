@@ -1,25 +1,25 @@
 {
   "Version": 1,
-  "WorkspaceRootPath": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\",
+  "WorkspaceRootPath": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\",
   "Documents": [
     {
-      "AbsoluteMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|c:\\lamp_control\\lamp_daq_control_v0.8\\lamp_daq_control_v0.8\\ui\\consoleui.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|c:\\lamp_control\\lamp_daq_control_v0.8\\ui\\consoleui.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|solutionrelative:ui\\consoleui.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\core\\daqcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\core\\daqcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|solutionrelative:core\\daqcontroller.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\core\\signallut.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\core\\signallut.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|solutionrelative:core\\signallut.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|solutionrelative:program.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     },
     {
-      "AbsoluteMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\core\\signalgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
+      "AbsoluteMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\core\\signalgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}",
       "RelativeMoniker": "D:0:0:{982CC655-6AC2-4C10-A681-59A27424B2FC}|LAMP_DAQ_Control_v0.8.csproj|solutionrelative:core\\signalgenerator.cs||{A6C744A8-0E4A-4FC6-886A-064283054674}"
     }
   ],
@@ -36,11 +36,11 @@
               "$type": "Document",
               "DocumentIndex": 0,
               "Title": "ConsoleUI.cs",
-              "DocumentMoniker": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\UI\\ConsoleUI.cs",
+              "DocumentMoniker": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\UI\\ConsoleUI.cs",
               "RelativeDocumentMoniker": "UI\\ConsoleUI.cs",
-              "ToolTip": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\UI\\ConsoleUI.cs",
+              "ToolTip": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\UI\\ConsoleUI.cs",
               "RelativeToolTip": "UI\\ConsoleUI.cs",
-              "ViewState": "AgIAAAYAAAAAAAAAAAAqwMMAAAA2AAAAAAAAAA==",
+              "ViewState": "AgIAABoAAAAAAAAAAAAwwEkAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
               "WhenOpened": "2025-06-19T17:11:41.122Z",
               "EditorCaption": ""
@@ -49,9 +49,9 @@
               "$type": "Document",
               "DocumentIndex": 3,
               "Title": "Program.cs",
-              "DocumentMoniker": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\Program.cs",
+              "DocumentMoniker": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\Program.cs",
               "RelativeDocumentMoniker": "Program.cs",
-              "ToolTip": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\Program.cs",
+              "ToolTip": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\Program.cs",
               "RelativeToolTip": "Program.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAABYAAAAsAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
@@ -61,9 +61,9 @@
               "$type": "Document",
               "DocumentIndex": 1,
               "Title": "DAQController.cs",
-              "DocumentMoniker": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\Core\\DAQController.cs",
+              "DocumentMoniker": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\Core\\DAQController.cs",
               "RelativeDocumentMoniker": "Core\\DAQController.cs",
-              "ToolTip": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\Core\\DAQController.cs",
+              "ToolTip": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\Core\\DAQController.cs",
               "RelativeToolTip": "Core\\DAQController.cs",
               "ViewState": "AgIAAJUBAAAAAAAAAAAAAKoBAAAJAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
@@ -73,9 +73,9 @@
               "$type": "Document",
               "DocumentIndex": 4,
               "Title": "SignalGenerator.cs",
-              "DocumentMoniker": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\Core\\SignalGenerator.cs",
+              "DocumentMoniker": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\Core\\SignalGenerator.cs",
               "RelativeDocumentMoniker": "Core\\SignalGenerator.cs",
-              "ToolTip": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\Core\\SignalGenerator.cs",
+              "ToolTip": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\Core\\SignalGenerator.cs",
               "RelativeToolTip": "Core\\SignalGenerator.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAYAAAAAAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
@@ -85,9 +85,9 @@
               "$type": "Document",
               "DocumentIndex": 2,
               "Title": "SignalLUT.cs",
-              "DocumentMoniker": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\Core\\SignalLUT.cs",
+              "DocumentMoniker": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\Core\\SignalLUT.cs",
               "RelativeDocumentMoniker": "Core\\SignalLUT.cs",
-              "ToolTip": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\LAMP_DAQ_Control_v0.8\\Core\\SignalLUT.cs",
+              "ToolTip": "C:\\LAMP_CONTROL\\LAMP_DAQ_Control_v0.8\\Core\\SignalLUT.cs",
               "RelativeToolTip": "Core\\SignalLUT.cs",
               "ViewState": "AgIAAAAAAAAAAAAAAAAAAAoAAAAYAAAAAAAAAA==",
               "Icon": "ae27a6b0-e345-4288-96df-5eaf394ee369.000738|",
