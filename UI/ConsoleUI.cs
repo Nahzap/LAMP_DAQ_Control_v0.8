@@ -2,16 +2,20 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
-using LAMP_DAQ_Control_v0._8.Core;
+using LAMP_DAQ_Control_v0_8.Core.DAQ;
+using LAMP_DAQ_Control_v0_8.Core.DAQ.Models;
+using LAMP_DAQ_Control_v0_8.Core.DAQ.Services;
+using Automation.BDaq;
 
-namespace LAMP_DAQ_Control_v0._8.UI
+namespace LAMP_DAQ_Control_v0_8.UI
 {
-    public class DAQDevice
+    internal class DAQDevice
     {
         public string Id { get; set; }
         public string Name { get; set; }
         public string ConfigFile { get; set; }
         public bool IsConnected { get; set; }
+        public int DeviceNumber { get; set; } = -1;
     }
     public class ConsoleUI
     {
@@ -54,7 +58,7 @@ namespace LAMP_DAQ_Control_v0._8.UI
                 try
                 {
                     Console.WriteLine($"\nInicializando {selectedDevice.Name}...");
-                    _controller.Initialize(selectedDevice.ConfigFile);
+                    _controller.Initialize(selectedDevice.ConfigFile, selectedDevice.DeviceNumber);
                     await ShowMenu(selectedDevice);
                     
                     // Si llegamos aquí, el usuario eligió volver al menú de selección
@@ -78,19 +82,65 @@ namespace LAMP_DAQ_Control_v0._8.UI
         {
             var devices = new List<DAQDevice>();
             
-            // Verificar si hay una tarjeta PCIe-1824 disponible
-            if (File.Exists("PCIe1824_prof_v1.xml"))
+            try
             {
-                devices.Add(new DAQDevice
+                Console.WriteLine("Buscando dispositivos DAQ...");
+                
+                // Intentar con hasta 4 dispositivos (rango típico)
+                for (int i = 0; i < 4; i++)
                 {
-                    Id = "PCIE-1824,BID#0",
-                    Name = "PCIe-1824 (Estándar)",
-                    ConfigFile = "PCIe1824_prof_v1.xml",
-                    IsConnected = true
-                });
+                    using (var daq = new InstantAoCtrl())
+                    {
+                        try
+                        {
+                            // Intentar configurar el dispositivo
+                            daq.SelectedDevice = new DeviceInformation(i);
+                            
+                            // Si llegamos aquí, el dispositivo está disponible
+                            var deviceName = $"PCIe-1824 (ID: {i})";
+                            
+                            devices.Add(new DAQDevice
+                            {
+                                Id = $"PCIE-1824,BID#{i}",
+                                Name = deviceName,
+                                ConfigFile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "PCIe1824_prof_v1.xml"),
+                                IsConnected = true,
+                                DeviceNumber = i
+                            });
+                            
+                            Console.WriteLine($"Dispositivo detectado: {deviceName}");
+                        }
+                        catch (Exception ex) when (i > 0)
+                        {
+                            // Ignorar errores para dispositivos que no existen
+                            Console.WriteLine($"Buscando dispositivo {i}: No encontrado");
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"Error al acceder al dispositivo {i}: {ex.Message}");
+                        }
+                    }
+                }
+                
+                // Verificar si hay un archivo de perfil para dispositivos no detectados
+                string defaultProfile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "PCIe1824_prof_v1.xml");
+                if (devices.Count == 0 && File.Exists(defaultProfile))
+                {
+                    Console.WriteLine("Advertencia: Usando configuración de perfil sin dispositivo detectado");
+                    devices.Add(new DAQDevice
+                    {
+                        Id = "PCIE-1824,NO-DEVICE",
+                        Name = "PCIe-1824 (No detectado)",
+                        ConfigFile = defaultProfile,
+                        IsConnected = false,
+                        DeviceNumber = -1
+                    });
+                }
             }
-            
-            // Aquí se podrían agregar más dispositivos en el futuro
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error al detectar dispositivos: {ex.Message}");
+            }
             
             return devices;
         }
@@ -303,11 +353,29 @@ namespace LAMP_DAQ_Control_v0._8.UI
         private void ShowDeviceInfo()
         {
             var info = _controller.GetDeviceInfo();
+            var channelStates = _controller.GetChannelStates();
             
             Console.WriteLine("\n=== Información del Dispositivo ===");
             Console.WriteLine($"Nombre: {info.Name}");
-            Console.WriteLine($"Canales: {info.Channels}");
+            Console.WriteLine($"Canales totales: {info.Channels}");
             Console.WriteLine("MODO: GENERACIÓN DE SEÑAL SENOIDAL CON LUT");
+            
+            Console.WriteLine("\n=== Estado de los Canales ===");
+            Console.WriteLine("Canal | Estado     | Rango de Valor");
+            Console.WriteLine("------+------------+----------------");
+            
+            foreach (var channel in channelStates)
+            {
+                string status = channel.IsActive ? "ACTIVO" : "INACTIVO";
+                Console.WriteLine($"{channel.ChannelNumber,5} | {status,-10} | {channel.ValueRange}");
+            }
+            
+            Console.WriteLine("\nLeyenda:");
+            Console.WriteLine("- ACTIVO: El canal está generando una señal actualmente");
+            Console.WriteLine("- INACTIVO: El canal está en reposo (0V)");
+            
+            Console.WriteLine("\nNota: La lectura de valores de voltaje no está soportada en este dispositivo.");
+            Console.WriteLine("El estado 'ACTIVO' indica que el canal está generando una señal.");
             
             Console.WriteLine("\nPresione cualquier tecla para continuar...");
             Console.ReadKey();

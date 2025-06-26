@@ -61,16 +61,43 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="Core\DAQController.cs" />
-    <Compile Include="Core\SignalLUT.cs" />
-    <Compile Include="Core\SignalGenerator.cs" />
+    <PackageReference Include="Common.Logging">
+      <Version>3.4.1</Version>
+    </PackageReference>
+    <PackageReference Include="Common.Logging.Core">
+      <Version>3.4.1</Version>
+    </PackageReference>
+    <PackageReference Include="System.Threading.Tasks.Extensions">
+      <Version>4.5.4</Version>
+    </PackageReference>
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Main Program -->
+    <Compile Include="Core\DAQ\DAQController.cs" />
+    <Compile Include="Core\DAQ\Exceptions\DAQException.cs" />
+    <Compile Include="Core\DAQ\Exceptions\DAQInitializationException.cs" />
+    <Compile Include="Core\DAQ\Exceptions\DAQOperationException.cs" />
+    <Compile Include="Core\DAQ\Interfaces\IChannelManager.cs" />
+    <Compile Include="Core\DAQ\Interfaces\IDeviceManager.cs" />
+    <Compile Include="Core\DAQ\Interfaces\ILogger.cs" />
+    <Compile Include="Core\DAQ\Interfaces\IProfileManager.cs" />
+    <Compile Include="Core\DAQ\Interfaces\ISignalGenerator.cs" />
+    <Compile Include="Core\DAQ\Managers\ChannelManager.cs" />
+    <Compile Include="Core\DAQ\Managers\DeviceManager.cs" />
+    <Compile Include="Core\DAQ\Managers\ProfileManager.cs" />
+    <Compile Include="Core\DAQ\Models\ChannelState.cs" />
+    <Compile Include="Core\DAQ\Models\DeviceInfo.cs" />
+    <Compile Include="Core\DAQ\Models\DeviceProfile.cs" />
+    <Compile Include="Core\DAQ\Services\ConsoleLogger.cs" />
+    <Compile Include="Core\DAQ\Services\SignalGenerator.cs" />
+    <Compile Include="Core\DAQ\Services\SignalLUT.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
-  </ItemGroup>
-  <ItemGroup>
-    <Compile Include="Core\ChannelConfig.cs" />
-  </ItemGroup>
-  <ItemGroup>
+    <!-- Core DAQ Components -->
+    <!-- DAQ Models -->
+    <!-- DAQ Exceptions -->
+    <!-- DAQ Services -->
+    <!-- UI Components -->
     <Compile Include="UI\ConsoleUI.cs" />
   </ItemGroup>
   <ItemGroup>

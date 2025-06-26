@@ -1,10 +1,11 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
-using LAMP_DAQ_Control_v0._8.Core;
-using LAMP_DAQ_Control_v0._8.UI;
+using LAMP_DAQ_Control_v0_8.Core.DAQ;
+using LAMP_DAQ_Control_v0_8.Core.DAQ.Models;
+using LAMP_DAQ_Control_v0_8.UI;
 
-namespace LAMP_DAQ_Control_v0._8
+namespace LAMP_DAQ_Control_v0_8
 {
     class Program
     {
@@ -26,7 +27,7 @@ namespace LAMP_DAQ_Control_v0._8
                     controller.Initialize(profilePath);
                     
                     // Mostrar información del dispositivo
-                    var deviceInfo = controller.GetDeviceInfo(profilePath);
+                    var deviceInfo = controller.GetDeviceInfo();
                     Console.WriteLine("\n=== INFORMACIÓN DEL DISPOSITIVO ===");
                     Console.WriteLine(deviceInfo.Name);
                     Console.WriteLine($"Canales: {deviceInfo.Channels}");

@@ -22,7 +22,9 @@ Este software permite controlar las tarjetas de adquisición de datos Advantech 
 
 ### Para PCIe-1824
 - **Salidas analógicas** de alta precisión
-- **Generación de señales** con precisión mejorada mediante LUTs
+- **Generación de señales** con precisión mejorada mediante LUTs de 65536 puntos
+- **Generación automática de LUT** si no existe en el directorio de salida
+- **Optimización para reducir jitter** mediante acceso directo a CSV y ciclo completo
 - **Configuración flexible** de parámetros de señal (frecuencia, amplitud, offset)
 - **Soporte para múltiples canales** analógicos
 
@@ -83,14 +85,18 @@ Este software permite controlar las tarjetas de adquisición de datos Advantech 
 ## Estructura del Proyecto
 
 - **Core/**: Contiene las clases principales de la aplicación
-  - `DAQController.cs`: Maneja la comunicación con las tarjetas DAQ
-  - `SignalGenerator.cs`: Genera señales analógicas (PCIe-1824)
-  - `DigitalIOManager.cs`: Maneja las E/S digitales (PCI-1735U)
-  - `SignalLUT.cs`: Maneja las tablas de búsqueda para generación de señales
-  - `ChannelConfig.cs`: Configuración de canales
+  - **DAQ/**: Contiene los componentes modulares del sistema DAQ
+    - **Interfaces/**: Interfaces para los componentes del sistema
+    - **Managers/**: Gestores de dispositivos, perfiles y canales
+      - `DeviceManager.cs`: Gestiona la detección e inicialización de dispositivos
+      - `ProfileManager.cs`: Gestiona perfiles de configuración
+      - `ChannelManager.cs`: Gestiona operaciones de canales
+    - **Services/**: Servicios de generación de señales y utilidades
+      - `SignalGenerator.cs`: Genera señales analógicas optimizadas (PCIe-1824)
+      - `SignalLUT.cs`: Maneja la generación y acceso a tablas de búsqueda
+  - `DAQController.cs`: Controlador principal que coordina los componentes
 - **UI/**: Contiene la interfaz de usuario
   - `ConsoleUI.cs`: Implementa la interfaz de consola
-- **LUT/**: Directorio que contiene las tablas de búsqueda para generación de señales
 
 ## Configuración
 
