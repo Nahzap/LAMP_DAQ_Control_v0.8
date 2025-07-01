@@ -102,9 +102,16 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <Content Include="bin\x86\Debug\PCIe1824_prof_v1.xml">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </Content>
+    <Content Include="Core\DAQ\Profiles\PCIe1824_prof_v1.xml" />
+    <Content Include="Core\DAQ\Profiles\PCI1735U_prof_v1.xml" />
+  </ItemGroup>
+  <!-- Incluir archivos de UI modularizada -->
+  <ItemGroup>
+    <Compile Include="UI\Models\**\*.cs" />
+    <Compile Include="UI\Interfaces\**\*.cs" />
+    <Compile Include="UI\Services\**\*.cs" />
+    <Compile Include="UI\Managers\**\*.cs" />
+    <Compile Include="UI\Exceptions\**\*.cs" />
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

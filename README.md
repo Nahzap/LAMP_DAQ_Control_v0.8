@@ -127,3 +127,86 @@ Este software es propiedad de [Nombre de la Empresa/Institución]. Todos los der
 ## Contacto
 
 Para soporte o preguntas, contacte a [correo de contacto].
+
+
+## MMD:
+graph TD
+    %% Definición de estilos
+    classDef entryPoint fill:#f9d71c,stroke:#333,stroke-width:2px
+    classDef ui fill:#66ccff,stroke:#333,stroke-width:2px
+    classDef core fill:#ff9966,stroke:#333,stroke-width:2px
+    classDef interfaces fill:#99cc99,stroke:#333,stroke-width:2px
+    classDef managers fill:#cc99ff,stroke:#333,stroke-width:2px
+    classDef services fill:#ff99cc,stroke:#333,stroke-width:2px
+    classDef models fill:#ffcc99,stroke:#333,stroke-width:2px
+    classDef exceptions fill:#ff6666,stroke:#333,stroke-width:2px
+    classDef external fill:#cccccc,stroke:#333,stroke-width:2px
+
+    %% Capa de Entrada
+    Program["Program.cs<br>(Entry Point)"]:::entryPoint
+    
+    %% Capa de Presentación
+    ConsoleUI["ConsoleUI.cs<br>(UI Layer)"]:::ui
+    
+    %% Capa de Control
+    DAQController["DAQController.cs<br>(Core Layer)"]:::core
+    
+    %% Capa de Abstracción (Interfaces)
+    subgraph Interfaces["Interfaces Layer"]
+        IDeviceManager["IDeviceManager"]:::interfaces
+        IChannelManager["IChannelManager"]:::interfaces
+        IProfileManager["IProfileManager"]:::interfaces
+        ISignalGenerator["ISignalGenerator"]:::interfaces
+        ILogger["ILogger"]:::interfaces
+    end
+    
+    %% Capa de Implementación
+    subgraph Managers["Managers Layer"]
+        ProfileManager["ProfileManager"]:::managers
+        ChannelManager["ChannelManager"]:::managers
+        DeviceManager["DeviceManager"]:::managers
+    end
+    
+    subgraph Services["Services Layer"]
+        SignalGenerator["SignalGenerator"]:::services
+        ConsoleLogger["ConsoleLogger"]:::services
+    end
+    
+    %% Capa de Modelo
+    subgraph Models["Models Layer"]
+        ChannelState["ChannelState"]:::models
+        DeviceInfo["DeviceInfo"]:::models
+    end
+    
+    %% Capa de Excepciones
+    subgraph Exceptions["Exceptions Layer"]
+        DAQInitializationException["DAQInitializationException"]:::exceptions
+    end
+    
+    %% Dependencias Externas
+    AutomationBDaq["Automation.BDaq<br>(External Library)"]:::external
+    
+    %% Relaciones
+    Program --> DAQController
+    Program --> ConsoleUI
+    ConsoleUI --> DAQController
+    
+    DAQController --> IDeviceManager
+    DAQController --> IChannelManager
+    DAQController --> IProfileManager
+    DAQController --> ISignalGenerator
+    DAQController --> ILogger
+    
+    IDeviceManager --> DeviceManager
+    IChannelManager --> ChannelManager
+    IProfileManager --> ProfileManager
+    ISignalGenerator --> SignalGenerator
+    ILogger --> ConsoleLogger
+    
+    DeviceManager --> AutomationBDaq
+    SignalGenerator --> AutomationBDaq
+    
+    DeviceManager --> DeviceInfo
+    ChannelManager --> ChannelState
+    
+    DAQController -.-> DAQInitializationException

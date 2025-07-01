@@ -103,7 +103,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
         /// <param name="deviceNumber">Device number to initialize (default: 0)</param>
         /// <exception cref="ObjectDisposedException">If the controller is disposed</exception>
         /// <exception cref="DAQInitializationException">If device initialization fails</exception>
-        public void Initialize(string profilePath = null, int deviceNumber = 0)
+        public void Initialize(string profileName = null, int deviceNumber = 0)
         {
             EnsureNotDisposed();
 
@@ -115,12 +115,43 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
                     return;
                 }
 
-                // Initialize the device
-                _deviceManager.InitializeDevice(deviceNumber);
+                // Verificar si el perfil proporcionado es compatible con el tipo de dispositivo
+                bool isDigitalProfile = profileName != null && 
+                                       (profileName.Contains("PCI1735") || profileName.Contains("1735"));
+                bool isAnalogProfile = profileName != null && 
+                                      (profileName.Contains("PCIe1824") || profileName.Contains("1824"));
                 
-                // Try to load the profile
-                if (!_profileManager.TryLoadProfile(profilePath) && !_profileManager.TryLoadDefaultProfile())
+                _logger.Info($"Inicializando dispositivo {deviceNumber} con perfil: {profileName ?? "<ninguno>"}" +
+                             $" (Digital: {isDigitalProfile}, Analógico: {isAnalogProfile})");
+
+                // Initialize the device with profile name to help determine device type
+                _deviceManager.InitializeDevice(deviceNumber, profileName);
+                
+                // Verificar que el perfil sea compatible con el tipo de dispositivo detectado
+                var deviceInfo = _deviceManager.GetDeviceInfo();
+                _logger.Info($"Dispositivo detectado: {deviceInfo.Name}, Tipo: {deviceInfo.DeviceType}");
+                
+                // Corregir el perfil si es necesario
+                string correctedProfile = profileName;
+                if (deviceInfo.DeviceType == DeviceType.Digital && !isDigitalProfile)
                 {
+                    correctedProfile = "PCI1735U_prof_v1";
+                    _logger.Warn($"Perfil incompatible. Cambiando a perfil digital: {correctedProfile}");
+                }
+                else if (deviceInfo.DeviceType == DeviceType.Analog && !isAnalogProfile)
+                {
+                    correctedProfile = "PCIe1824_prof_v1";
+                    _logger.Warn($"Perfil incompatible. Cambiando a perfil analógico: {correctedProfile}");
+                }
+                
+                // Try to load the profile (ahora solo necesitamos llamar a un método)
+                try
+                {
+                    _profileManager.TryLoadProfile(correctedProfile);
+                }
+                catch (Exception ex)
+                {
+                    _logger.Warn($"No se pudo cargar el perfil: {ex.Message}");
                     // Configure default channels if no profile is loaded
                     _deviceManager.ConfigureChannels(_profileManager.GetDefaultRange());
                 }
@@ -231,6 +262,60 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
             }
         }
         #endregion
+        
+        #region Digital I/O Methods
+        /// <summary>
+        /// Escribe un valor en un puerto digital completo
+        /// </summary>
+        /// <param name="port">Número de puerto (0-3)</param>
+        /// <param name="value">Valor a escribir (0-255)</param>
+        public void WriteDigitalPort(int port, byte value)
+        {
+            EnsureNotDisposed();
+            ValidatePortNumber(port);
+            _deviceManager.WriteDigitalPort(port, value);
+        }
+        
+        /// <summary>
+        /// Lee el valor de un puerto digital completo
+        /// </summary>
+        /// <param name="port">Número de puerto (0-3)</param>
+        /// <returns>Valor del puerto (0-255)</returns>
+        public byte ReadDigitalPort(int port)
+        {
+            EnsureNotDisposed();
+            ValidatePortNumber(port);
+            return _deviceManager.ReadDigitalPort(port);
+        }
+        
+        /// <summary>
+        /// Escribe un valor en un bit específico de un puerto digital
+        /// </summary>
+        /// <param name="port">Número de puerto (0-3)</param>
+        /// <param name="bit">Número de bit (0-7)</param>
+        /// <param name="value">Valor a escribir (true=1, false=0)</param>
+        public void WriteDigitalBit(int port, int bit, bool value)
+        {
+            EnsureNotDisposed();
+            ValidatePortNumber(port);
+            ValidateBitNumber(bit);
+            _deviceManager.WriteDigitalBit(port, bit, value);
+        }
+        
+        /// <summary>
+        /// Lee el valor de un bit específico de un puerto digital
+        /// </summary>
+        /// <param name="port">Número de puerto (0-3)</param>
+        /// <param name="bit">Número de bit (0-7)</param>
+        /// <returns>Valor del bit (true=1, false=0)</returns>
+        public bool ReadDigitalBit(int port, int bit)
+        {
+            EnsureNotDisposed();
+            ValidatePortNumber(port);
+            ValidateBitNumber(bit);
+            return _deviceManager.ReadDigitalBit(port, bit);
+        }
+        #endregion
 
         #region Private Methods
 
@@ -241,6 +326,26 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
                 throw new ArgumentOutOfRangeException(
                     nameof(channel), 
                     $"Channel must be between 0 and {ChannelCount - 1}");
+            }
+        }
+        
+        private void ValidatePortNumber(int port)
+        {
+            if (port < 0 || port > 3)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(port),
+                    "Puerto debe estar entre 0 y 3");
+            }
+        }
+        
+        private void ValidateBitNumber(int bit)
+        {
+            if (bit < 0 || bit > 7)
+            {
+                throw new ArgumentOutOfRangeException(
+                    nameof(bit),
+                    "Bit debe estar entre 0 y 7");
             }
         }
         private void EnsureNotDisposed()

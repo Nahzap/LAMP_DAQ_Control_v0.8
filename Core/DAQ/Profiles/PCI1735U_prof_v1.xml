@@ -1,0 +1,489 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DAQNavi Profile="2.0.0.0" Version="4.0.0.0">
+    <DaqDevice ModuleIndex="0">
+        <Property ID="8">
+            <Description>Product ID:</Description>
+            <Attribute>0</Attribute>
+            <Type>2</Type>
+            <EnumType>ProductId</EnumType>
+            <Tip>Product ID is used to represent a DAQ Device model and distinguish devices of different models. Each device model owns an unique Product ID.</Tip>
+            <Value>187</Value>
+        </Property>
+    </DaqDevice>
+    <DaqDio ModuleIndex="0">
+        <Property ID="120">
+            <Description>DI Data Mask:</Description>
+            <Attribute>0</Attribute>
+            <Type>65536</Type>
+            <EnumType></EnumType>
+            <Tip>DiDataMask is used to describe whether each channel of a digital port is used DI function or not. The value of DataMask has 8 bits and each bit corresponds to one channel of the digital port. Value 1 means that the corresponding channel can be used for DI function. DiDataMask of this port will be changed when the port direction changing.</Tip>
+            <Value>255,255,255,255</Value>
+        </Property>
+        <Property ID="121">
+            <Description>DO Data Mask:</Description>
+            <Attribute>0</Attribute>
+            <Type>65536</Type>
+            <EnumType></EnumType>
+            <Tip>Do DataMask is used to describe whether each channel of  one digital port could be used for digital output.  Every DataMask has 8 bits and each bit corresponds to one channel of digital port. When the value of one bit is 1, it means the corresponding channel could be used for digital output.DoDataMask of this port will be changed when the port direction changing.</Tip>
+            <Value>255,255,255,255</Value>
+        </Property>
+        <Property ID="354">
+            <Description>DI Inverse Ports:</Description>
+            <Attribute>1</Attribute>
+            <Type>65536</Type>
+            <EnumType></EnumType>
+            <Tip>Gets or sets whether enable the DI value inverse.</Tip>
+            <Value>0,0,0,0</Value>
+        </Property>
+        <Property ID="26">
+            <Description>Channel Number Max:</Description>
+            <Attribute>2</Attribute>
+            <Type>2</Type>
+            <EnumType></EnumType>
+            <Tip> Max number of physical channel.Physical channel refers to visible input/output terminals or pins that can connect wires on a data acquisition card.</Tip>
+            <Value>31</Value>
+        </Property>
+        <Property ID="82">
+            <Description>Ports Type:</Description>
+            <Attribute>0</Attribute>
+            <Type>65536</Type>
+            <EnumType>DioPortType</EnumType>
+            <Tip>The type of all digital port.There are six kinds of port type,the name and meaning, listed in the DioPortType Enumeration.</Tip>
+            <Value>2,2,2,2</Value>
+        </Property>
+    </DaqDio>
+    <DaqCounter ModuleIndex="0">
+        <Property ID="279">
+            <Description>Clock Source:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>Gets or sets the clock source for primary counter.</Tip>
+            <Value>631,632,633</Value>
+        </Property>
+        <Property ID="290">
+            <Description>Clock Polarity:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>Gets or sets the clock polarity from the counter supported polarities.</Tip>
+            <Value>1,1,1</Value>
+        </Property>
+        <Property ID="292">
+            <Description>Gate Enabled/Disabled:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets or sets whether enabled the gate control or not.</Tip>
+            <Value>1,1,1</Value>
+        </Property>
+        <Property ID="291">
+            <Description>Gate Polarity:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>Gets or sets the clock polarity from the gate supported polarities.</Tip>
+            <Value>1,1,1</Value>
+        </Property>
+        <Property ID="231">
+            <Description>Frequency Measurement Method:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>FreqMeasureMethod</EnumType>
+            <Tip>Gets or sets the frequency measurement method.</Tip>
+            <Value>1,1,1</Value>
+        </Property>
+        <Property ID="232">
+            <Description>Collection Period Configuration:</Description>
+            <Attribute>3</Attribute>
+            <Type>65541</Type>
+            <EnumType></EnumType>
+            <Tip>Gets or Sets the CollectionPeriod for the method of CountingPulseBySysTime,this is the gate width for pulse counting in Frequency Measurement function.</Tip>
+            <Value>0,0,0</Value>
+        </Property>
+        <Property ID="281">
+            <Description>Clock Source:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>Gets or sets the clock source.</Tip>
+            <Value>631,632,633</Value>
+        </Property>
+        <Property ID="282">
+            <Description>Gate Source:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>Gets or sets the gate source.</Tip>
+            <Value>639,640,641</Value>
+        </Property>
+        <Property ID="296">
+            <Description>Clock Polarity:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>Gets or sets the clock polarity from the supported.</Tip>
+            <Value>1,1,1</Value>
+        </Property>
+        <Property ID="297">
+            <Description>Gate Polarity:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>Gets or sets the gate polarity from the supported.</Tip>
+            <Value>1,1,1</Value>
+        </Property>
+        <Property ID="298">
+            <Description>Out Signal Type:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>OutSignalType</EnumType>
+            <Tip>Gets or sets the output signal type from the supported.</Tip>
+            <Value>3,3,3</Value>
+        </Property>
+        <Property ID="283">
+            <Description>Delay Count:</Description>
+            <Attribute>3</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets or sets the delay count.</Tip>
+            <Value>65535,65535,65535</Value>
+        </Property>
+        <Property ID="303">
+            <Description>Gate Enabled/Disabled:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets or sets whether enable the gate control.</Tip>
+            <Value>1,1,1</Value>
+        </Property>
+        <Property ID="304">
+            <Description>Gate Polarity:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>Gets or sets the gate polarity from the supported. </Tip>
+            <Value>1,1,1</Value>
+        </Property>
+        <Property ID="305">
+            <Description>Out Signal Type:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>OutSignalType</EnumType>
+            <Tip>Gets or sets the output signal type from the supported.</Tip>
+            <Value>3,3,3</Value>
+        </Property>
+        <Property ID="311">
+            <Description>Gate Enabled/Disabled:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets or sets whether enable the gate control.</Tip>
+            <Value>1,1,1</Value>
+        </Property>
+        <Property ID="312">
+            <Description>Gate Polarity:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>Gets or sets the gate polarity from the supported.</Tip>
+            <Value>1,1,1</Value>
+        </Property>
+        <Property ID="313">
+            <Description>Out Signal Count:</Description>
+            <Attribute>3</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets or sets the output signal count from the supported.</Tip>
+            <Value>0,0,0</Value>
+        </Property>
+        <Property ID="324">
+            <Description>Initial Value:</Description>
+            <Attribute>3</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets or sets the count initial value for counters.</Tip>
+            <Value>0,0,0</Value>
+        </Property>
+        <Property ID="325">
+            <Description>Index Reset Times:</Description>
+            <Attribute>3</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets or sets the reset times with index pin for Up-Down counter.</Tip>
+            <Value>0,0,0</Value>
+        </Property>
+        <Property ID="26">
+            <Description>Channel Number Max:</Description>
+            <Attribute>2</Attribute>
+            <Type>2</Type>
+            <EnumType></EnumType>
+            <Tip> Max number of physical channel.Physical channel refers to visible input/output terminals or pins that can connect wires on a data acquisition card.</Tip>
+            <Value>2</Value>
+        </Property>
+        <Property ID="23">
+            <Description>Resolution:</Description>
+            <Attribute>2</Attribute>
+            <Type>2</Type>
+            <EnumType></EnumType>
+            <Tip>Data resolution refers to the number of the bit that is used to realize analog to digital(or digital to analog) conversion,the bigger bit number of ADC(or DAC) is, the higher the resolution will be</Tip>
+            <Value>16</Value>
+        </Property>
+        <Property ID="174">
+            <Description>Counter0 Capabilities:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>CounterCapability</EnumType>
+            <Tip>The supported functions of channel 0.</Tip>
+            <Value>2,5,3</Value>
+        </Property>
+        <Property ID="175">
+            <Description>Counter1 Capabilities:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>CounterCapability</EnumType>
+            <Tip>The supported functions of channel 1.</Tip>
+            <Value>2,5,3</Value>
+        </Property>
+        <Property ID="176">
+            <Description>Counter2 Capabilities:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>CounterCapability</EnumType>
+            <Tip>The supported functions of channel 2.</Tip>
+            <Value>2,5,3</Value>
+        </Property>
+        <Property ID="242">
+            <Description>Counter0 Chip Clock Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The CLK source of counter 0. </Tip>
+            <Value>631</Value>
+        </Property>
+        <Property ID="243">
+            <Description>Counter1 Chip Clock Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The CLK source of counter 1. </Tip>
+            <Value>632</Value>
+        </Property>
+        <Property ID="244">
+            <Description>Counter2 Chip Clock Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The CLK source of counter 2. </Tip>
+            <Value>633</Value>
+        </Property>
+        <Property ID="250">
+            <Description>Counter0 GATE Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The gate source of counter 0. </Tip>
+            <Value>639</Value>
+        </Property>
+        <Property ID="251">
+            <Description>Counter1 GATE Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The gate source of counter 1. </Tip>
+            <Value>640</Value>
+        </Property>
+        <Property ID="252">
+            <Description>Counter2 GATE Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The gate source of counter 2. </Tip>
+            <Value>641</Value>
+        </Property>
+        <Property ID="258">
+            <Description>Chip Value Registers:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets all the register value of the selected counter. </Tip>
+            <Value>0</Value>
+        </Property>
+        <Property ID="206">
+            <Description>Chip Operation Modes</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>CounterOperationMode</EnumType>
+            <Tip>The supported counter chip operation mode.</Tip>
+            <Value>0,1,2,3,4,5</Value>
+        </Property>
+        <Property ID="207">
+            <Description>Chip Signal Counting Types:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalCountingType</EnumType>
+            <Tip>The supported chip counting mode for this component. The counting mode would be one of the DownCount, UpCount, PulseDirection, TwoPulse, AbPhase_x1, AbPhase_x2, ABPhase_x4. </Tip>
+            <Value>1</Value>
+        </Property>
+        <Property ID="287">
+            <Description>Clock Polarities:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>The supported CLK counting edge types, it would be Positive or Negative,Positive means rising edge and Negative means falling edge. </Tip>
+            <Value>1</Value>
+        </Property>
+        <Property ID="289">
+            <Description>Gate Control by Software Setting:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets whether the supported gate control can be enabled by software setting,1 means yes and 0 means no.</Tip>
+            <Value>0,0,0</Value>
+        </Property>
+        <Property ID="288">
+            <Description>Gate Polarities:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>The supported gate level types, it would be Positive or Negative,Positive means high level and Negative means low level.</Tip>
+            <Value>1</Value>
+        </Property>
+        <Property ID="259">
+            <Description>Counter0 Clock Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The supported clock sources which counter0 can be used.</Tip>
+            <Value>631</Value>
+        </Property>
+        <Property ID="260">
+            <Description>Counter1 Clock Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The supported clock sources which counter1 can be used.</Tip>
+            <Value>632</Value>
+        </Property>
+        <Property ID="261">
+            <Description>Counter2 Clock Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The supported clock sources which counter2 can be used.</Tip>
+            <Value>633</Value>
+        </Property>
+        <Property ID="267">
+            <Description>Counter0 Gate Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The supported gate source which counter0 can be used.</Tip>
+            <Value>639,0</Value>
+        </Property>
+        <Property ID="268">
+            <Description>Counter1 Gate Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The supported gate source which counter1 can be used.</Tip>
+            <Value>640,0</Value>
+        </Property>
+        <Property ID="269">
+            <Description>Counter2 Gate Source:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalDrop</EnumType>
+            <Tip>The supported gate source which counter2 can be used.</Tip>
+            <Value>641,0</Value>
+        </Property>
+        <Property ID="293">
+            <Description>Clock Polarities:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>The supported CLK counting edge types, it would be Positive or Negative,Positive means rising edge and Negative means falling edge. </Tip>
+            <Value>1</Value>
+        </Property>
+        <Property ID="294">
+            <Description>Gate Polarities:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>The supported gate level types, it would be Positive or Negative,Positive means high level and Negative means low level.</Tip>
+            <Value>1</Value>
+        </Property>
+        <Property ID="295">
+            <Description>Output Signal Types:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>OutSignalType</EnumType>
+            <Tip>The supported output signal type.</Tip>
+            <Value>3</Value>
+        </Property>
+        <Property ID="320">
+            <Description>Delay Count Range:</Description>
+            <Attribute>2</Attribute>
+            <Type>7</Type>
+            <EnumType></EnumType>
+            <Tip>The supported delay count range which DelayCount should be set in this range.</Tip>
+            <Value>5,2,65535</Value>
+        </Property>
+        <Property ID="299">
+            <Description>Gate Control:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets whether the gate pin control can be set by software setting.</Tip>
+            <Value>0,0,0</Value>
+        </Property>
+        <Property ID="300">
+            <Description>Gate Polarities:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>The supported gate level types, it would be Positive or Negative,Positive means high level and Negative means low level.</Tip>
+            <Value>1</Value>
+        </Property>
+        <Property ID="301">
+            <Description>Output Signal Types:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>OutSignalType</EnumType>
+            <Tip>The supported output signal type.</Tip>
+            <Value>3</Value>
+        </Property>
+        <Property ID="213">
+            <Description>Frequency Measurement Method:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>FreqMeasureMethod</EnumType>
+            <Tip>The supported frequency measurement method.</Tip>
+            <Value>1</Value>
+        </Property>
+        <Property ID="306">
+            <Description>Gate Control:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>Gets whether the gate pin control can be set by software setting.</Tip>
+            <Value>0,0,0</Value>
+        </Property>
+        <Property ID="307">
+            <Description>Gate Polarities:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>SignalPolarity</EnumType>
+            <Tip>The supported gate level types, it would be Positive or Negative,Positive means high level and Negative means low level.</Tip>
+            <Value>1</Value>
+        </Property>
+        <Property ID="322">
+            <Description>Up-Down Counter Initial Values:</Description>
+            <Attribute>2</Attribute>
+            <Type>65538</Type>
+            <EnumType></EnumType>
+            <Tip>The supported initial value which can be used for Up-Down counter value reset.</Tip>
+            <Value>0</Value>
+        </Property>
+    </DaqCounter>
+</DAQNavi>

@@ -16,7 +16,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
     public class ProfileManager : IProfileManager
     {
         private const string DEFAULT_PROFILE_EXTENSION = "*.xml";
-        private const string PROFILES_DIRECTORY = "Profiles";
+        private const string PROFILES_DIRECTORY = "..\\..\\Core\\DAQ\\Profiles";
         private const string DEFAULT_PROFILE_NAME = "PCIe1824_prof_v1.xml";
 
         private readonly Dictionary<string, DeviceProfile> _availableProfiles;
@@ -54,50 +54,63 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
 
         public DeviceProfile ActiveProfile => _activeProfile;
 
-        public bool TryLoadProfile(string profilePath)
+        /// <summary>
+        /// Carga un perfil desde la carpeta Core/DAQ/Profiles
+        /// </summary>
+        /// <param name="profileName">Nombre del perfil (sin ruta). Si es null o vacío, se usará el perfil por defecto</param>
+        /// <returns>True si el perfil se cargó correctamente, False en caso contrario</returns>
+        /// <exception cref="FileNotFoundException">Si el perfil por defecto no se encuentra</exception>
+        public bool TryLoadProfile(string profileName = null)
         {
-            if (string.IsNullOrEmpty(profilePath))
-            {
-                _logger.Debug("No profile path provided, using default configuration");
-                return false;
-            }
-
-            string fullPath = profilePath;
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            string fullPath;
             
-            // If it's just a profile name, try to find it in the profiles directory
-            if (!Path.IsPathRooted(profilePath) && !profilePath.Contains(Path.DirectorySeparatorChar))
+            // Si no se especifica un perfil, usar el perfil por defecto
+            if (string.IsNullOrEmpty(profileName))
             {
-                string profilesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, PROFILES_DIRECTORY);
-                fullPath = Path.Combine(profilesDir, profilePath);
-                
-                // Ensure the file has an extension
-                if (!Path.HasExtension(fullPath))
-                {
-                    fullPath += ".xml";
-                }
+                profileName = DEFAULT_PROFILE_NAME;
+                _logger.Info($"No se especificó un perfil, usando el perfil por defecto: {profileName}");
             }
-
+            
+            // Asegurar que tenga extensión .xml
+            if (!Path.HasExtension(profileName))
+            {
+                profileName += ".xml";
+            }
+            
+            // Construir la ruta completa al perfil en Core/DAQ/Profiles
+            fullPath = Path.Combine(baseDir, PROFILES_DIRECTORY, profileName);
+            _logger.Info($"Buscando perfil en: {fullPath}");
+            
             if (!File.Exists(fullPath))
             {
-                _logger.Warn($"Profile file not found: {fullPath}");
+                string errorMsg = $"Perfil no encontrado: {fullPath}";
+                _logger.Error(errorMsg);
+                
+                // Si es el perfil por defecto, lanzar excepción
+                if (profileName.Equals(DEFAULT_PROFILE_NAME, StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new FileNotFoundException(errorMsg);
+                }
+                
                 return false;
             }
-
+            
             try
             {
                 // Validate the profile before loading
                 if (!ValidateProfile(fullPath, _deviceManager.DeviceModel))
                 {
-                    _logger.Warn($"Profile validation failed for: {fullPath}");
+                    _logger.Error($"Validación de perfil fallida para: {fullPath}");
                     return false;
                 }
 
                 _deviceManager.Device.LoadProfile(fullPath);
-                _logger.Info($"Profile loaded successfully from: {fullPath}");
+                _logger.Info($"Perfil cargado exitosamente desde: {fullPath}");
                 
                 // Update active profile if it's a known one
-                string profileName = Path.GetFileNameWithoutExtension(fullPath);
-                if (_availableProfiles.TryGetValue(profileName, out var profile))
+                string profileBaseName = Path.GetFileNameWithoutExtension(fullPath);
+                if (_availableProfiles.TryGetValue(profileBaseName, out var profile))
                 {
                     _activeProfile = profile;
                 }
@@ -106,15 +119,21 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
             }
             catch (Exception ex)
             {
-                _logger.Error($"Error loading profile {fullPath}: {ex.Message}");
+                _logger.Error($"Error al cargar perfil {fullPath}: {ex.Message}");
                 return false;
             }
         }
 
+        /// <summary>
+        /// Carga el perfil por defecto
+        /// </summary>
+        /// <returns>True si el perfil se cargó correctamente</returns>
+        /// <exception cref="FileNotFoundException">Si el perfil por defecto no se encuentra</exception>
         public bool TryLoadDefaultProfile()
         {
-            string defaultProfile = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, DEFAULT_PROFILE_NAME);
-            return TryLoadProfile(defaultProfile);
+            // Simplemente llamamos a TryLoadProfile sin especificar un nombre de perfil
+            // para que use el perfil por defecto
+            return TryLoadProfile(null);
         }
 
         public DeviceProfile MatchDeviceToProfile(string deviceDescription)
@@ -161,17 +180,32 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
         {
             try
             {
-                string profilesDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, PROFILES_DIRECTORY);
+                // Buscar en el directorio de la aplicación y sus subdirectorios
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                List<string> profileFiles = new List<string>();
                 
-                if (!Directory.Exists(profilesDir))
+                // Buscar en el directorio base
+                profileFiles.AddRange(Directory.GetFiles(baseDir, DEFAULT_PROFILE_EXTENSION));
+                
+                // Buscar en el directorio Profiles si existe
+                string profilesDir = Path.Combine(baseDir, "Profiles");
+                if (Directory.Exists(profilesDir))
                 {
-                    _logger.Info($"Profiles directory not found: {profilesDir}");
-                    return;
+                    profileFiles.AddRange(Directory.GetFiles(profilesDir, DEFAULT_PROFILE_EXTENSION));
                 }
-
-                foreach (string profileFile in Directory.GetFiles(profilesDir, DEFAULT_PROFILE_EXTENSION))
+                
+                // Buscar en Core/DAQ/Profiles si existe
+                string coreProfilesDir = Path.Combine(baseDir, "..\\..\\Core\\DAQ\\Profiles");
+                if (Directory.Exists(coreProfilesDir))
+                {
+                    profileFiles.AddRange(Directory.GetFiles(coreProfilesDir, DEFAULT_PROFILE_EXTENSION));
+                }
+                
+                // Procesar todos los archivos encontrados
+                foreach (string profileFile in profileFiles)
                 {
                     AddProfileFromFile(profileFile);
+                    _logger.Info($"Found profile: {Path.GetFileName(profileFile)}");
                 }
                 
                 _logger.Info($"Found {_availableProfiles.Count} available profiles");

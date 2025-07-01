@@ -1,6 +1,27 @@
 namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Models
 {
     /// <summary>
+    /// Enum para identificar el tipo de dispositivo DAQ
+    /// </summary>
+    public enum DeviceType
+    {
+        /// <summary>
+        /// Tipo de dispositivo desconocido
+        /// </summary>
+        Unknown,
+        
+        /// <summary>
+        /// Dispositivo analógico (PCIe-1824)
+        /// </summary>
+        Analog,
+        
+        /// <summary>
+        /// Dispositivo digital (PCI-1735U)
+        /// </summary>
+        Digital
+    }
+
+    /// <summary>
     /// Represents information about a DAQ device
     /// </summary>
     public class DeviceInfo
@@ -24,6 +45,11 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Models
         /// Gets or sets additional device-specific information
         /// </summary>
         public string AdditionalInfo { get; set; }
+        
+        /// <summary>
+        /// Gets or sets the type of device (Analog or Digital)
+        /// </summary>
+        public DeviceType DeviceType { get; set; } = DeviceType.Analog;
 
         /// <summary>
         /// Initializes a new instance of the DeviceInfo class

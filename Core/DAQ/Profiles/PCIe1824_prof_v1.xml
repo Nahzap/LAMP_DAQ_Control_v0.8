@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<DAQNavi Version="4.0.0.0" Profile="2.0.0.0">
+    <DaqDevice ModuleIndex="0">
+        <Property ID="8">
+            <Description>Product ID:</Description>
+            <Attribute>0</Attribute>
+            <Type>2</Type>
+            <EnumType>ProductId</EnumType>
+            <Tip>Product ID is used to represent a DAQ Device model and distinguish devices of different models. Each device model owns an unique Product ID.</Tip>
+            <Value>2110</Value>
+        </Property>
+    </DaqDevice>
+    <DaqAo ModuleIndex="0">
+        <Property ID="52">
+            <Description>Value Range Type:</Description>
+            <Attribute>1</Attribute>
+            <Type>65538</Type>
+            <EnumType>ValueRange</EnumType>
+            <Tip>Gets or sets the ValueRange for the selected channel.</Tip>
+            <Value>1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1</Value>
+        </Property>
+        <Property ID="23">
+            <Description>Resolution:</Description>
+            <Attribute>2</Attribute>
+            <Type>2</Type>
+            <EnumType></EnumType>
+            <Tip>Data resolution refers to the number of the bit that is used to realize analog to digital(or digital to analog) conversion,the bigger bit number of ADC(or DAC) is, the higher the resolution will be</Tip>
+            <Value>16</Value>
+        </Property>
+        <Property ID="26">
+            <Description>Channel Number Max:</Description>
+            <Attribute>2</Attribute>
+            <Type>2</Type>
+            <EnumType></EnumType>
+            <Tip> Max number of physical channel.Physical channel refers to visible input/output terminals or pins that can connect wires on a data acquisition card.</Tip>
+            <Value>31</Value>
+        </Property>
+        <Property ID="31">
+            <Description>Value Range:</Description>
+            <Attribute>0</Attribute>
+            <Type>65538</Type>
+            <EnumType>ValueRange</EnumType>
+            <Tip>The device supported Value Range type.</Tip>
+            <Value>1,33,34</Value>
+        </Property>
+    </DaqAo>
+</DAQNavi>

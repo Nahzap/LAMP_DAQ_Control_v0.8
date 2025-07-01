@@ -31,10 +31,11 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Interfaces
         string DeviceModel { get; }
 
         /// <summary>
-        /// Initializes the device with the specified device number
+        /// Initializes the device with the specified device number and profile name
         /// </summary>
         /// <param name="deviceNumber">Device number to initialize</param>
-        void InitializeDevice(int deviceNumber);
+        /// <param name="profileName">Optional profile name to help determine device type</param>
+        void InitializeDevice(int deviceNumber, string profileName = null);
 
         /// <summary>
         /// Writes a voltage value to the specified channel
@@ -59,5 +60,35 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Interfaces
         /// </summary>
         /// <returns>List of detected devices</returns>
         IList<DeviceInfo> DetectDevices();
+
+        /// <summary>
+        /// Escribe un valor en un puerto digital completo
+        /// </summary>
+        /// <param name="port">Número de puerto (0-3)</param>
+        /// <param name="value">Valor a escribir (0-255)</param>
+        void WriteDigitalPort(int port, byte value);
+
+        /// <summary>
+        /// Lee el valor de un puerto digital completo
+        /// </summary>
+        /// <param name="port">Número de puerto (0-3)</param>
+        /// <returns>Valor del puerto (0-255)</returns>
+        byte ReadDigitalPort(int port);
+
+        /// <summary>
+        /// Escribe un valor en un bit específico de un puerto digital
+        /// </summary>
+        /// <param name="port">Número de puerto (0-3)</param>
+        /// <param name="bit">Número de bit (0-7)</param>
+        /// <param name="value">Valor a escribir (true=1, false=0)</param>
+        void WriteDigitalBit(int port, int bit, bool value);
+
+        /// <summary>
+        /// Lee el valor de un bit específico de un puerto digital
+        /// </summary>
+        /// <param name="port">Número de puerto (0-3)</param>
+        /// <param name="bit">Número de bit (0-7)</param>
+        /// <returns>Valor del bit (true=1, false=0)</returns>
+        bool ReadDigitalBit(int port, int bit);
     }
 }

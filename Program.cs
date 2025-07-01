@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Threading.Tasks;
+using System.Collections.Generic;
 using LAMP_DAQ_Control_v0_8.Core.DAQ;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Models;
 using LAMP_DAQ_Control_v0_8.UI;
@@ -11,30 +12,20 @@ namespace LAMP_DAQ_Control_v0_8
     {
         static async Task Main(string[] args)
         {
-            Console.Title = "Controlador DAQ PCIe-1824";
+            Console.Title = "Controlador DAQ Multidevice";
             
             try
             {
-                // Ruta al perfil de configuración
-                string profilePath = "PCIe1824_prof_v1.xml";
+                Console.WriteLine("=== Sistema de Control DAQ Multidevice ===");
+                Console.WriteLine("Detectando dispositivos disponibles...");
                 
-                Console.WriteLine("=== Inicializando Controlador DAQ PCIe-1824 ===");
-                Console.WriteLine($"Buscando perfil en: {Path.Combine(AppDomain.CurrentDomain.BaseDirectory, profilePath)}");
-                
+                // Crear el controlador DAQ
                 using (var controller = new DAQController())
                 {
-                    // Inicializar el controlador con el perfil
-                    controller.Initialize(profilePath);
-                    
-                    // Mostrar información del dispositivo
-                    var deviceInfo = controller.GetDeviceInfo();
-                    Console.WriteLine("\n=== INFORMACIÓN DEL DISPOSITIVO ===");
-                    Console.WriteLine(deviceInfo.Name);
-                    Console.WriteLine($"Canales: {deviceInfo.Channels}");
-                    Console.WriteLine("===================================\n");
-                    
-                    // Iniciar la interfaz de usuario
+                    // Crear la interfaz de usuario con el controlador
                     var ui = new ConsoleUI(controller);
+                    
+                    // Ejecutar la interfaz de usuario
                     await ui.Run();
                 }
             }
