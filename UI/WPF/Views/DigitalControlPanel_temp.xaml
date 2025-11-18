@@ -1,0 +1,49 @@
+<UserControl x:Class="LAMP_DAQ_Control_v0_8.UI.WPF.Views.DigitalControlPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:wpf="clr-namespace:ScottPlot;assembly=ScottPlot.WPF"
+             xmlns:local="clr-namespace:LAMP_DAQ_Control_v0_8.UI.WPF.Views">
+    
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="*"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="*"/>
+        </Grid.ColumnDefinitions>
+        
+        <GroupBox Grid.Row="0" Grid.Column="0" Header="?? MONITOREO (DI)" Margin="5" Padding="10" FontWeight="Bold" Foreground="#2C3E50">
+            <StackPanel>
+                <Label Content="Frecuencia (Hz):" FontWeight="Normal"/>
+                <TextBox Text="{Binding ReadFrequency, UpdateSourceTrigger=PropertyChanged}" Margin="0,0,0,10"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center">
+                    <Button Content="? Iniciar" Command="{Binding StartMonitoringCommand}" Background="#27AE60" Foreground="White" Width="90" Height="30" Margin="5"/>
+                    <Button Content="? Detener" Command="{Binding StopMonitoringCommand}" Background="#E74C3C" Foreground="White" Width="90" Height="30" Margin="5"/>
+                </StackPanel>
+                <TextBlock Margin="0,10,0,0" HorizontalAlignment="Center">
+                    <Run Text="Estado: " FontWeight="Bold"/>
+                    <Run Text="{Binding IsMonitoring, Converter={StaticResource BoolToStringConverter}, ConverterParameter='ACTIVO|DETENIDO'}" FontWeight="Bold" Foreground="{Binding IsMonitoring, Converter={StaticResource BoolToBrushConverter}, ConverterParameter='Green|Red'}"/>
+                </TextBlock>
+            </StackPanel>
+        </GroupBox>
+        
+        <GroupBox Grid.Row="1" Grid.Column="0" Header="?? CONTROL (DO)" Margin="5" Padding="10" FontWeight="Bold" Foreground="#2C3E50">
+            <StackPanel>
+                <Label Content="Puerto (0-3):" FontWeight="Normal"/>
+                <TextBox x:Name="WritePortNumber" Text="0" Margin="0,0,0,5"/>
+                <Label Content="Valor (0-255):" FontWeight="Normal"/>
+                <TextBox x:Name="WritePortValue" Text="0" Margin="0,0,0,10"/>
+                <Button Content="? Escribir" Click="OnWritePortClick" Background="#3498DB" Foreground="White" Height="30" Margin="0,0,0,10"/>
+                <Separator Margin="0,5"/>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10,0,0">
+                    <Button Content="?? Reset" Click="OnResetAllPortsClick" Background="#95A5A6" Foreground="White" Width="90" Height="25" Margin="5,0"/>
+                    <Button Content="? All" Click="OnSetAllPortsClick" Background="#F39C12" Foreground="White" Width="90" Height="25" Margin="5,0"/>
+                </StackPanel>
+            </StackPanel>
+        </GroupBox>
+        
+        <GroupBox Grid.Row="0" Grid.Column="1" Header="?? ESTADOS" Margin="5" Padding="10" FontWeight="Bold" Foreground="#2C3E50">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>

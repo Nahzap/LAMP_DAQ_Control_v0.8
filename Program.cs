@@ -10,7 +10,23 @@ namespace LAMP_DAQ_Control_v0_8
 {
     class Program
     {
-        static async Task Main(string[] args)
+        [STAThread] // Requerido para WPF
+        static void Main(string[] args)
+        {
+            // Detectar modo: -console para modo consola, default es WPF
+            bool useConsole = args.Length > 0 && args[0].ToLower() == "-console";
+            
+            if (useConsole)
+            {
+                RunConsoleMode().Wait();
+            }
+            else
+            {
+                RunWPFMode();
+            }
+        }
+        
+        static async Task RunConsoleMode()
         {
             Console.Title = "Controlador DAQ Multidevice";
             
@@ -42,6 +58,13 @@ namespace LAMP_DAQ_Control_v0_8
                 Console.WriteLine("\nPresione cualquier tecla para salir...");
                 Console.ReadKey();
             }
+        }
+        
+        static void RunWPFMode()
+        {
+            var app = new UI.WPF.App();
+            app.InitializeComponent();
+            app.Run();
         }
     }
 }

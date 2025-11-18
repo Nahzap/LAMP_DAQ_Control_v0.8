@@ -6,7 +6,7 @@
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
     <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
     <ProjectGuid>{982CC655-6AC2-4C10-A681-59A27424B2FC}</ProjectGuid>
-    <OutputType>Exe</OutputType>
+    <OutputType>WinExe</OutputType>
     <RootNamespace>LAMP_DAQ_Control_v0._8</RootNamespace>
     <AssemblyName>LAMP_DAQ_Control_v0.8</AssemblyName>
     <TargetFrameworkVersion>v4.7.2</TargetFrameworkVersion>
@@ -59,6 +59,12 @@
     <Reference Include="System.Data" />
     <Reference Include="System.Net.Http" />
     <Reference Include="System.Xml" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="WindowsBase" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Common.Logging">
@@ -69,6 +75,9 @@
     </PackageReference>
     <PackageReference Include="System.Threading.Tasks.Extensions">
       <Version>4.5.4</Version>
+    </PackageReference>
+    <PackageReference Include="ScottPlot.WPF">
+      <Version>4.1.68</Version>
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
@@ -102,8 +111,12 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="App.config" />
-    <Content Include="Core\DAQ\Profiles\PCIe1824_prof_v1.xml" />
-    <Content Include="Core\DAQ\Profiles\PCI1735U_prof_v1.xml" />
+    <Content Include="Core\DAQ\Profiles\PCIe1824_prof_v1.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="Core\DAQ\Profiles\PCI1735U_prof_v1.xml">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
   </ItemGroup>
   <!-- Incluir archivos de UI modularizada -->
   <ItemGroup>
@@ -112,6 +125,42 @@
     <Compile Include="UI\Services\**\*.cs" />
     <Compile Include="UI\Managers\**\*.cs" />
     <Compile Include="UI\Exceptions\**\*.cs" />
+  </ItemGroup>
+  <!-- Incluir archivos WPF -->
+  <ItemGroup>
+    <Compile Include="UI\WPF\ViewModels\*.cs" />
+    <Compile Include="UI\WPF\Converters\*.cs" />
+    <Compile Include="UI\WPF\App.xaml.cs">
+      <DependentUpon>App.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="UI\WPF\Windows\MainWindow.xaml.cs">
+      <DependentUpon>MainWindow.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="UI\WPF\Views\AnalogControlPanel.xaml.cs">
+      <DependentUpon>AnalogControlPanel.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="UI\WPF\Views\DigitalControlPanel.xaml.cs">
+      <DependentUpon>DigitalControlPanel.xaml</DependentUpon>
+    </Compile>
+  </ItemGroup>
+  <!-- Incluir archivos XAML de WPF -->
+  <ItemGroup>
+    <Page Include="UI\WPF\App.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="UI\WPF\Windows\MainWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="UI\WPF\Views\AnalogControlPanel.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="UI\WPF\Views\DigitalControlPanel.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>

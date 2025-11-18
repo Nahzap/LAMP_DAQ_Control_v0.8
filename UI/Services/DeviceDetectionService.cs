@@ -314,7 +314,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.Services
                             var device = new DAQDevice
                             {
                                 Name = deviceInfo,
-                                DeviceNumber = i,
+                                DeviceNumber = boardId,
                                 DeviceType = DeviceType.Digital,
                                 BoardId = boardId,
                                 ConfigFile = FindProfileForDevice(deviceInfo)
@@ -345,7 +345,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.Services
                             var device = new DAQDevice
                             {
                                 Name = deviceInfo,
-                                DeviceNumber = i,
+                                DeviceNumber = boardId,
                                 DeviceType = DeviceType.Digital,
                                 BoardId = boardId,
                                 ConfigFile = FindProfileForDevice(deviceInfo)
@@ -386,7 +386,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.Services
                             var device = new DAQDevice
                             {
                                 Name = deviceInfo,
-                                DeviceNumber = i,
+                                DeviceNumber = boardId,
                                 DeviceType = DeviceType.Analog,
                                 BoardId = boardId,
                                 ConfigFile = FindProfileForDevice(deviceInfo)

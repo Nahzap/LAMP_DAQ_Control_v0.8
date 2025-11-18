@@ -1,0 +1,167 @@
+<UserControl x:Class="LAMP_DAQ_Control_v0_8.UI.WPF.Views.AnalogControlPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        
+        <!-- CONTROLES -->
+        <Border Grid.Row="0" 
+                Background="#ECF0F1" 
+                Padding="15" 
+                Margin="5">
+            <StackPanel>
+                <TextBlock Text="CONTROL ANALÓGICO - PCIE-1824" 
+                          FontSize="16" 
+                          FontWeight="Bold" 
+                          Margin="0,0,0,15"
+                          Foreground="#2C3E50"/>
+                
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="*"/>
+                    </Grid.ColumnDefinitions>
+                    
+                    <!-- COLUMNA 1: Valor DC -->
+                    <GroupBox Grid.Column="0" 
+                              Header="Establecer Valor DC" 
+                              Margin="5"
+                              Padding="10">
+                        <StackPanel>
+                            <Label Content="Canal (0-31):"/>
+                            <TextBox Text="{Binding SelectedChannel, UpdateSourceTrigger=PropertyChanged}"/>
+                            
+                            <Label Content="Voltaje (V):"/>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
+                                <Slider Grid.Column="0" 
+                                        Minimum="0" 
+                                        Maximum="10" 
+                                        Value="{Binding Voltage}"
+                                        TickFrequency="0.5"
+                                        IsSnapToTickEnabled="True"
+                                        VerticalAlignment="Center"/>
+                                <TextBox Grid.Column="1" 
+                                        Text="{Binding Voltage, StringFormat=F2}" 
+                                        Width="60"
+                                        Margin="5,0,0,0"/>
+                            </Grid>
+                            
+                            <Button Content="Establecer DC" 
+                                    Command="{Binding SetDcCommand}"
+                                    Background="#27AE60"
+                                    Foreground="White"
+                                    Margin="0,10,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+                    
+                    <!-- COLUMNA 2: Rampa -->
+                    <GroupBox Grid.Column="1" 
+                              Header="Generar Rampa" 
+                              Margin="5"
+                              Padding="10">
+                        <StackPanel>
+                            <Label Content="Voltaje Objetivo (V):"/>
+                            <TextBox Text="{Binding TargetVoltage, UpdateSourceTrigger=PropertyChanged}"/>
+                            
+                            <Label Content="Duración (ms):"/>
+                            <TextBox Text="{Binding RampDuration, UpdateSourceTrigger=PropertyChanged}"/>
+                            
+                            <Button Content="Generar Rampa" 
+                                    Command="{Binding GenerateRampCommand}"
+                                    Background="#3498DB"
+                                    Foreground="White"
+                                    Margin="0,10,0,0"/>
+                        </StackPanel>
+                    </GroupBox>
+                    
+                    <!-- COLUMNA 3: Señal -->
+                    <GroupBox Grid.Column="2" 
+                              Header="Generar Señal" 
+                              Margin="5"
+                              Padding="10">
+                        <StackPanel>
+                            <Label Content="Frecuencia (Hz):"/>
+                            <TextBox Text="{Binding Frequency, UpdateSourceTrigger=PropertyChanged}"/>
+                            
+                            <Label Content="Amplitud (V):"/>
+                            <TextBox Text="{Binding Amplitude, UpdateSourceTrigger=PropertyChanged}"/>
+                            
+                            <Label Content="Offset (V):"/>
+                            <TextBox Text="{Binding Offset, UpdateSourceTrigger=PropertyChanged}"/>
+                            
+                            <Grid Margin="0,10,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="*"/>
+                                </Grid.ColumnDefinitions>
+                                <Button Grid.Column="0" 
+                                        Content="Generar" 
+                                        Command="{Binding GenerateSignalCommand}"
+                                        Background="#F39C12"
+                                        Foreground="White"
+                                        Margin="0,0,5,0"/>
+                                <Button Grid.Column="1" 
+                                        Content="Detener" 
+                                        Command="{Binding StopSignalCommand}"
+                                        Background="#E74C3C"
+                                        Foreground="White"
+                                        Margin="5,0,0,0"/>
+                            </Grid>
+                        </StackPanel>
+                    </GroupBox>
+                </Grid>
+                
+                <Button Content="ℹ Información del Dispositivo" 
+                        Command="{Binding ShowInfoCommand}"
+                        Background="#95A5A6"
+                        Foreground="White"
+                        Margin="5,10,5,0"
+                        HorizontalAlignment="Center"
+                        MinWidth="200"/>
+            </StackPanel>
+        </Border>
+        
+        <!-- GRÁFICO -->
+        <Border Grid.Row="1" 
+                BorderBrush="#BDC3C7" 
+                BorderThickness="1" 
+                Margin="5"
+                Background="White">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+                
+                <Border Grid.Row="0" 
+                        Background="#34495E" 
+                        Padding="10,5">
+                    <TextBlock Text="Gráfico de Comandos Enviados (Tracking de Salidas AO)" 
+                              Foreground="White" 
+                              FontWeight="Bold"/>
+                </Border>
+                
+                <!-- Plot placeholder -->
+                <Border Grid.Row="1" x:Name="AnalogPlot" Margin="5" Background="WhiteSmoke"/>
+                
+                <TextBlock Grid.Row="1" 
+                          Text="📊 Los gráficos mostrarán los comandos enviados a la tarjeta&#x0a;(La PCIE-1824 solo tiene salidas, no podemos leer valores físicos)" 
+                          VerticalAlignment="Center" 
+                          HorizontalAlignment="Center"
+                          FontSize="14"
+                          Foreground="#95A5A6"
+                          TextAlignment="Center"
+                          TextWrapping="Wrap"
+                          MaxWidth="400"/>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

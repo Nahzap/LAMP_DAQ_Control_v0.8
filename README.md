@@ -1,10 +1,10 @@
-# LAMP DAQ Control
+# LAMP DAQ Control v0.8
 
-Controlador para tarjetas de adquisición de datos (DAQ) PCIe-1824 y PCI-1735U, diseñado para generar señales de control para el sistema LAMP.
+Controlador para tarjetas de adquisición de datos (DAQ) PCIe-1824 y PCI-1735U con interfaz visual WPF y monitoreo en tiempo real.
 
-## Descripción
+## 🎯 Descripción
 
-Este software permite controlar las tarjetas de adquisición de datos Advantech PCIe-1824 y PCI-1735U desde una interfaz de consola. Incluye funcionalidades para:
+Este software permite controlar las tarjetas de adquisición de datos Advantech PCIe-1824 y PCI-1735U desde una **interfaz visual moderna** o consola. Incluye funcionalidades para:
 
 - **PCIe-1824**:
   - Generación de señales analógicas de alta precisión usando tablas de búsqueda (LUT)
@@ -48,21 +48,53 @@ Este software permite controlar las tarjetas de adquisición de datos Advantech 
   - Drivers de Advantech DAQNavi instalados
   - Alimentación adecuada para los canales analógicos y digitales
 
-## Instalación
+## 📦 Instalación
 
-1. Asegúrese de tener instalados los drivers de Advantech DAQNavi para ambas tarjetas
-2. Instale el .NET Framework 4.7.2 o superior si no está presente
+1. Asegúrese de tener instalados los drivers de **Advantech DAQNavi** para ambas tarjetas
+2. Instale **.NET Framework 4.7.2** o superior si no está presente
 3. Clone o descargue este repositorio
-4. Copie el contenido de la carpeta de instalación a la ubicación deseada
-5. Asegúrese de que los archivos de perfil estén en el directorio del ejecutable:
-   - `PCIe1824_prof_v1.xml` para la tarjeta PCIe-1824
-   - `PCI1735U_prof_v1.xml` para la tarjeta PCI-1735U
+4. **Compile el proyecto** (ver sección Compilación)
+5. Los archivos de perfil se copian automáticamente al directorio del ejecutable
 
-## Uso
+## 🔨 Compilación
 
-1. Ejecute `LAMP_DAQ_Control_v0.8.exe`
-2. Seleccione el dispositivo a controlar (PCIe-1824 o PCI-1735U)
-3. Seleccione una opción del menú principal:
+### Opción 1: Script de PowerShell (Recomendado)
+```powershell
+.\Build.ps1
+```
+
+### Opción 2: MSBuild Manual
+```powershell
+# Buscar MSBuild
+$msbuild = Get-ChildItem "C:\Program Files\" -Recurse -Filter "MSBuild.exe" | 
+            Where-Object { $_.FullName -like "*\Current\Bin\MSBuild.exe" } | 
+            Select-Object -First 1
+
+# Compilar
+& $msbuild.FullName "LAMP_DAQ_Control_v0.8.sln" /t:Rebuild /p:Configuration=Release
+```
+
+**⚠️ IMPORTANTE:** NO use `dotnet build` - no es compatible con WPF en .NET Framework.
+
+## 🚀 Uso
+
+### Modo Visual (WPF) - Por defecto
+```powershell
+.\Run.ps1
+# o directamente:
+.\bin\Release\LAMP_DAQ_Control_v0.8.exe
+```
+
+### Modo Consola (Retrocompatible)
+```powershell
+.\Run.ps1 -Console
+# o directamente:
+.\bin\Release\LAMP_DAQ_Control_v0.8.exe -console
+```
+
+## 🎨 Características de la Interfaz Visual
+
+### Panel de Control Analógico (PCIe-1824):
 
 ### Para PCIe-1824:
    - **1. Establecer valor DC**: Fija un voltaje constante en un canal

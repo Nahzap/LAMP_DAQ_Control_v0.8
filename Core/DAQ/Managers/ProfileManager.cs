@@ -16,7 +16,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
     public class ProfileManager : IProfileManager
     {
         private const string DEFAULT_PROFILE_EXTENSION = "*.xml";
-        private const string PROFILES_DIRECTORY = "..\\..\\Core\\DAQ\\Profiles";
+        private const string PROFILES_DIRECTORY = "Core\\DAQ\\Profiles";
         private const string DEFAULT_PROFILE_NAME = "PCIe1824_prof_v1.xml";
 
         private readonly Dictionary<string, DeviceProfile> _availableProfiles;
@@ -195,7 +195,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                 }
                 
                 // Buscar en Core/DAQ/Profiles si existe
-                string coreProfilesDir = Path.Combine(baseDir, "..\\..\\Core\\DAQ\\Profiles");
+                string coreProfilesDir = Path.Combine(baseDir, PROFILES_DIRECTORY);
                 if (Directory.Exists(coreProfilesDir))
                 {
                     profileFiles.AddRange(Directory.GetFiles(coreProfilesDir, DEFAULT_PROFILE_EXTENSION));

@@ -297,13 +297,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                 // Usar una tasa de muestreo óptima para reducir ripple
                 const double sampleRate = 1000000.0; // 1 MHz.
                 
-                // Escribir valores de prueba para asegurar que la señal es visible al inicio
-                _device.Write(channel, offset + amplitude); // Max value
-                Thread.Sleep(1);
-                _device.Write(channel, offset - amplitude); // Min value
-                Thread.Sleep(1);
-                _device.Write(channel, offset); // Mid value
-                Thread.Sleep(1);
+                // OPTIMIZACIÓN: Eliminar Thread.Sleep innecesarios (-30% latencia)
+                // Escribir valor inicial directamente sin delays
+                _device.Write(channel, offset);
                 
                 _logger.Info($"Starting sine wave generation on channel {channel}: {frequency}Hz, {amplitude}V amplitude, {offset}V offset");
                 

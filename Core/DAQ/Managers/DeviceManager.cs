@@ -146,7 +146,32 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
             _logger.Info($"Intentando inicializar como dispositivo analógico (PCIe-1824)...");
             try
             {
-                _analogDevice.SelectedDevice = new DeviceInformation(deviceNumber);
+                // Buscar el índice del dispositivo con el Board ID especificado
+                var deviceCount = _analogDevice.SupportedDevices.Count;
+                _logger.Info($"Dispositivos analógicos disponibles: {deviceCount}");
+                
+                int actualDeviceNumber = -1;
+                for (int i = 0; i < deviceCount; i++)
+                {
+                    var deviceInfo = _analogDevice.SupportedDevices[i];
+                    _logger.Info($"Dispositivo disponible {i}: {deviceInfo.Description}, ID: {deviceInfo.DeviceNumber}");
+                    
+                    if (deviceInfo.DeviceNumber == deviceNumber || 
+                        deviceInfo.Description.Contains($"BID#{deviceNumber}"))
+                    {
+                        actualDeviceNumber = deviceInfo.DeviceNumber;
+                        _logger.Info($"✓ Encontrado dispositivo analógico con Board ID {deviceNumber}, DeviceNumber={actualDeviceNumber}");
+                        break;
+                    }
+                }
+                
+                if (actualDeviceNumber == -1)
+                {
+                    _logger.Info($"No se encontró dispositivo analógico con Board ID {deviceNumber}");
+                    return false;
+                }
+                
+                _analogDevice.SelectedDevice = new DeviceInformation(actualDeviceNumber);
                 _deviceModel = _analogDevice.SelectedDevice.Description;
                 
                 // Verificar si es un dispositivo analógico (PCIe-1824)
@@ -200,6 +225,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                     // Primero verificamos si el dispositivo existe en la lista de dispositivos soportados
                     bool deviceFound = false;
                     string deviceDesc = "";
+                    int actualDeviceNumber = -1;
                     
                     for (int i = 0; i < deviceCount; i++)
                     {
@@ -211,7 +237,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                         {
                             deviceFound = true;
                             deviceDesc = deviceInfo.Description;
-                            _logger.Info($"✓ Encontrado dispositivo con Board ID {deviceNumber}: {deviceDesc}");
+                            actualDeviceNumber = deviceInfo.DeviceNumber;
+                            _logger.Info($"✓ Encontrado dispositivo con Board ID {deviceNumber}: {deviceDesc}, DeviceNumber={actualDeviceNumber}");
                             break;
                         }
                     }
@@ -222,8 +249,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                         return false;
                     }
                     
-                    // Inicializar el dispositivo con el Board ID
-                    _digitalInputDevice.SelectedDevice = new DeviceInformation(deviceNumber);
+                    // Inicializar el dispositivo con el DeviceNumber correcto
+                    _digitalInputDevice.SelectedDevice = new DeviceInformation(actualDeviceNumber);
                     _deviceModel = _digitalInputDevice.SelectedDevice.Description;
                     
                     // Verificar propiedades específicas de la PCI-1735U
@@ -278,6 +305,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                     // Primero verificamos si el dispositivo existe en la lista de dispositivos soportados
                     bool deviceFound = false;
                     string deviceDesc = "";
+                    int actualDeviceNumber = -1;
                     
                     for (int i = 0; i < deviceCount; i++)
                     {
@@ -289,7 +317,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                         {
                             deviceFound = true;
                             deviceDesc = deviceInfo.Description;
-                            _logger.Info($"✓ Encontrado dispositivo con Board ID {deviceNumber}: {deviceDesc}");
+                            actualDeviceNumber = deviceInfo.DeviceNumber;
+                            _logger.Info($"✓ Encontrado dispositivo con Board ID {deviceNumber}: {deviceDesc}, DeviceNumber={actualDeviceNumber}");
                             break;
                         }
                     }
@@ -300,8 +329,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                         return false;
                     }
                     
-                    // Inicializar el dispositivo con el Board ID
-                    _digitalOutputDevice.SelectedDevice = new DeviceInformation(deviceNumber);
+                    // Inicializar el dispositivo con el DeviceNumber correcto
+                    _digitalOutputDevice.SelectedDevice = new DeviceInformation(actualDeviceNumber);
                     _deviceModel = _digitalOutputDevice.SelectedDevice.Description;
                     
                     // Verificar propiedades específicas de la PCI-1735U
