@@ -70,8 +70,8 @@ namespace LAMP_DAQ_Control_v0_8.UI
                     return;
                 }
                 
-                // Mostrar menú de operaciones según el tipo de dispositivo
-                await _menuManager.ShowMainMenu(devices);
+                // Mostrar menú de operaciones según el tipo de dispositivo (ya inicializado)
+                await _menuManager.ShowDeviceMenu(selectedDevice);
             }
             catch (UIException ex)
             {

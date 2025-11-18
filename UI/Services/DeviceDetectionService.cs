@@ -27,6 +27,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.Services
             _consoleService.ShowMessage("Detectando dispositivos DAQ disponibles...");
             
             var devices = new List<DAQDevice>();
+            var detectedBoardIds = new HashSet<int>();
             
             _consoleService.ShowMessage("\n=== LISTADO DE TODOS LOS DISPOSITIVOS ADVANTECH DISPONIBLES ===\n");
             
@@ -43,16 +44,13 @@ namespace LAMP_DAQ_Control_v0_8.UI.Services
                 _consoleService.ShowMessage($"- {profile}");
             }
             
-            // Detectar dispositivos en cada posición
-            for (int i = 0; i < 8; i++)
-            {
-                _consoleService.ShowMessage($"\n=== Analizando posición {i} ===");
-                var device = DetectDAQDeviceByBoardId(i);
-                if (device != null)
-                {
-                    devices.Add(device);
-                }
-            }
+            // Detectar dispositivos digitales (DI y DO)
+            _consoleService.ShowMessage("\n=== Detectando dispositivos digitales ===");
+            DetectDigitalDevices(devices, detectedBoardIds);
+            
+            // Detectar dispositivos analógicos (AO)
+            _consoleService.ShowMessage("\n=== Detectando dispositivos analógicos ===");
+            DetectAnalogDevices(devices, detectedBoardIds);
             
             // Mostrar resumen de detección
             _consoleService.ShowMessage("\n=== Resumen de detección de dispositivos ===");
@@ -108,13 +106,13 @@ namespace LAMP_DAQ_Control_v0_8.UI.Services
             DeviceType detectedType = DeviceType.Unknown;
             
             // Intentar detectar dispositivo digital
-            if (TryDetectDigitalDevice(deviceNumber, out detectedDeviceName, out detectedBoardId))
+            if (TryDetectDigitalDevice(deviceNumber, 0, out detectedDeviceName, out detectedBoardId))
             {
                 detectedType = DeviceType.Digital;
                 _consoleService.ShowMessage($"  Dispositivo digital detectado: {detectedDeviceName} (Board ID: {detectedBoardId})");
             }
             // Si no se detectó como digital, intentar como analógico
-            else if (TryDetectAnalogDevice(deviceNumber, out detectedDeviceName, out detectedBoardId))
+            else if (TryDetectAnalogDevice(deviceNumber, 0, out detectedDeviceName, out detectedBoardId))
             {
                 detectedType = DeviceType.Analog;
                 _consoleService.ShowMessage($"  Dispositivo analógico detectado: {detectedDeviceName} (Board ID: {detectedBoardId})");
@@ -147,38 +145,38 @@ namespace LAMP_DAQ_Control_v0_8.UI.Services
                         if (DetermineDeviceType(productId) == DeviceType.Digital)
                         {
                             // Intentar detectar dispositivo digital
-                            if (TryDetectDigitalDevice(deviceNumber, productId, out string detectedDeviceName, out int boardId))
+                            if (TryDetectDigitalDevice(deviceNumber, productId, out string digitalDeviceName, out int digitalBoardId))
                             {
-                                _consoleService.ShowMessage($"  Dispositivo digital detectado con InstantDiCtrl: {detectedDeviceName} (Board ID: {boardId})");
+                                _consoleService.ShowMessage($"  Dispositivo digital detectado con InstantDiCtrl: {digitalDeviceName} (Board ID: {digitalBoardId})");
                                 _consoleService.ShowMessage($"  Tipo de dispositivo detectado: Digital");
                                 _consoleService.ShowMessage($"  Perfil asignado: {profileName}");
                                 
                                 return new DAQDevice
                                 {
-                                    Name = detectedDeviceName,
+                                    Name = digitalDeviceName,
                                     DeviceNumber = deviceNumber,
                                     ConfigFile = profileFile,
                                     DeviceType = DeviceType.Digital,
-                                    BoardId = boardId
+                                    BoardId = digitalBoardId
                                 };
                             }
                         }
                         else if (DetermineDeviceType(productId) == DeviceType.Analog)
                         {
                             // Intentar detectar dispositivo analógico
-                            if (TryDetectAnalogDevice(deviceNumber, productId, out string detectedDeviceName, out int boardId))
+                            if (TryDetectAnalogDevice(deviceNumber, productId, out string analogDeviceName, out int analogBoardId))
                             {
-                                _consoleService.ShowMessage($"  Dispositivo analógico detectado con InstantAoCtrl: {detectedDeviceName} (Board ID: {boardId})");
+                                _consoleService.ShowMessage($"  Dispositivo analógico detectado con InstantAoCtrl: {analogDeviceName} (Board ID: {analogBoardId})");
                                 _consoleService.ShowMessage($"  Tipo de dispositivo detectado: Analógico");
                                 _consoleService.ShowMessage($"  Perfil asignado: {profileName}");
                                 
                                 return new DAQDevice
                                 {
-                                    Name = detectedDeviceName,
+                                    Name = analogDeviceName,
                                     DeviceNumber = deviceNumber,
                                     ConfigFile = profileFile,
                                     DeviceType = DeviceType.Analog,
-                                    BoardId = boardId
+                                    BoardId = analogBoardId
                                 };
                             }
                         }
@@ -295,6 +293,226 @@ namespace LAMP_DAQ_Control_v0_8.UI.Services
             }
             
             return false;
+        }
+        
+        private void DetectDigitalDevices(List<DAQDevice> devices, HashSet<int> detectedBoardIds)
+        {
+            try
+            {
+                // Detectar dispositivos DI
+                var diCtrl = new InstantDiCtrl();
+                for (int i = 0; i < diCtrl.SupportedDevices.Count; i++)
+                {
+                    try
+                    {
+                        string deviceInfo = diCtrl.SupportedDevices[i].ToString();
+                        int boardId = ExtractBoardId(deviceInfo);
+                        if (!detectedBoardIds.Contains(boardId) && !string.IsNullOrEmpty(deviceInfo) && boardId > 0)
+                        {
+                            _consoleService.ShowMessage($"  Dispositivo DI detectado: {deviceInfo}");
+                            
+                            var device = new DAQDevice
+                            {
+                                Name = deviceInfo,
+                                DeviceNumber = i,
+                                DeviceType = DeviceType.Digital,
+                                BoardId = boardId,
+                                ConfigFile = FindProfileForDevice(deviceInfo)
+                            };
+                            
+                            devices.Add(device);
+                            detectedBoardIds.Add(boardId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _consoleService.ShowError($"  Error al procesar dispositivo DI en posición {i}: {ex.Message}");
+                    }
+                }
+                
+                // Detectar dispositivos DO
+                var doCtrl = new InstantDoCtrl();
+                for (int i = 0; i < doCtrl.SupportedDevices.Count; i++)
+                {
+                    try
+                    {
+                        string deviceInfo = doCtrl.SupportedDevices[i].ToString();
+                        int boardId = ExtractBoardId(deviceInfo);
+                        if (!detectedBoardIds.Contains(boardId) && !string.IsNullOrEmpty(deviceInfo) && boardId > 0)
+                        {
+                            _consoleService.ShowMessage($"  Dispositivo DO detectado: {deviceInfo}");
+                            
+                            var device = new DAQDevice
+                            {
+                                Name = deviceInfo,
+                                DeviceNumber = i,
+                                DeviceType = DeviceType.Digital,
+                                BoardId = boardId,
+                                ConfigFile = FindProfileForDevice(deviceInfo)
+                            };
+                            
+                            devices.Add(device);
+                            detectedBoardIds.Add(boardId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _consoleService.ShowError($"  Error al procesar dispositivo DO en posición {i}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _consoleService.ShowError($"  Error general al detectar dispositivos digitales: {ex.Message}");
+            }
+        }
+        
+        private void DetectAnalogDevices(List<DAQDevice> devices, HashSet<int> detectedBoardIds)
+        {
+            try
+            {
+                // Detectar dispositivos AO
+                var aoCtrl = new InstantAoCtrl();
+                for (int i = 0; i < aoCtrl.SupportedDevices.Count; i++)
+                {
+                    try
+                    {
+                        string deviceInfo = aoCtrl.SupportedDevices[i].ToString();
+                        int boardId = ExtractBoardId(deviceInfo);
+                        if (!detectedBoardIds.Contains(boardId) && !string.IsNullOrEmpty(deviceInfo) && boardId > 0)
+                        {
+                            _consoleService.ShowMessage($"  Dispositivo AO detectado: {deviceInfo}");
+                            
+                            var device = new DAQDevice
+                            {
+                                Name = deviceInfo,
+                                DeviceNumber = i,
+                                DeviceType = DeviceType.Analog,
+                                BoardId = boardId,
+                                ConfigFile = FindProfileForDevice(deviceInfo)
+                            };
+                            
+                            devices.Add(device);
+                            detectedBoardIds.Add(boardId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _consoleService.ShowError($"  Error al procesar dispositivo AO en posición {i}: {ex.Message}");
+                    }
+                }
+                
+                // Detectar dispositivos AI
+                var aiCtrl = new InstantAiCtrl();
+                for (int i = 0; i < aiCtrl.SupportedDevices.Count; i++)
+                {
+                    try
+                    {
+                        string deviceInfo = aiCtrl.SupportedDevices[i].ToString();
+                        int boardId = ExtractBoardId(deviceInfo);
+                        if (!detectedBoardIds.Contains(boardId) && !string.IsNullOrEmpty(deviceInfo) && boardId > 0)
+                        {
+                            _consoleService.ShowMessage($"  Dispositivo AI detectado: {deviceInfo}");
+                            
+                            var device = new DAQDevice
+                            {
+                                Name = deviceInfo,
+                                DeviceNumber = i,
+                                DeviceType = DeviceType.Analog,
+                                BoardId = boardId,
+                                ConfigFile = FindProfileForDevice(deviceInfo)
+                            };
+                            
+                            devices.Add(device);
+                            detectedBoardIds.Add(boardId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _consoleService.ShowError($"  Error al procesar dispositivo AI en posición {i}: {ex.Message}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                _consoleService.ShowError($"  Error general al detectar dispositivos analógicos: {ex.Message}");
+            }
+        }
+        
+        private int ExtractBoardId(string deviceDescription)
+        {
+            try
+            {
+                // Formato esperado: "PCIE-1824,BID#12" o "PCI-1735U,BID#3"
+                if (deviceDescription.Contains("BID#"))
+                {
+                    var parts = deviceDescription.Split(new[] { "BID#" }, StringSplitOptions.None);
+                    if (parts.Length > 1 && int.TryParse(parts[1], out int boardId))
+                    {
+                        return boardId;
+                    }
+                }
+            }
+            catch
+            {
+                // Continuar con valor por defecto
+            }
+            
+            return -1;
+        }
+        
+        private string FindProfileForDevice(string deviceDescription)
+        {
+            try
+            {
+                string profilesPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "Core", "DAQ", "Profiles");
+                
+                if (!Directory.Exists(profilesPath))
+                {
+                    _consoleService.ShowError($"  Directorio de perfiles no encontrado: {profilesPath}");
+                    return string.Empty;
+                }
+                
+                var profileFiles = Directory.GetFiles(profilesPath, "*.xml");
+                
+                // Extraer el modelo del dispositivo (ej: PCI-1735U, PCIE-1824)
+                string deviceModel = deviceDescription.Split(',')[0].Trim();
+                _consoleService.ShowMessage($"  Buscando perfil para: {deviceModel}");
+                
+                foreach (var profileFile in profileFiles)
+                {
+                    try
+                    {
+                        // Comparar el nombre del archivo del perfil con el modelo del dispositivo
+                        string profileName = Path.GetFileNameWithoutExtension(profileFile);
+                        
+                        // Normalizar nombres para comparación (quitar guiones y convertir a mayúsculas)
+                        string normalizedProfile = profileName.Replace("-", "").Replace("_", "").ToUpperInvariant();
+                        string normalizedDevice = deviceModel.Replace("-", "").Replace("_", "").ToUpperInvariant();
+                        
+                        _consoleService.ShowMessage($"    Comparando: '{normalizedDevice}' con '{normalizedProfile}'");
+                        
+                        // Verificar si el perfil contiene el modelo del dispositivo
+                        if (normalizedProfile.Contains(normalizedDevice))
+                        {
+                            _consoleService.ShowMessage($"  ✓ Perfil encontrado: {profileFile}");
+                            return profileFile;
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _consoleService.ShowError($"    Error al procesar perfil {profileFile}: {ex.Message}");
+                    }
+                }
+                
+                _consoleService.ShowMessage($"  ✗ No se encontró perfil para {deviceModel}");
+            }
+            catch (Exception ex)
+            {
+                _consoleService.ShowError($"  Error al buscar perfil para dispositivo: {ex.Message}");
+            }
+            
+            return string.Empty;
         }
         
         private DeviceType DetermineDeviceType(int productId)

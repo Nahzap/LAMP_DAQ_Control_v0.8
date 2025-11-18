@@ -247,11 +247,24 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
             try
             {
                 var doc = XDocument.Load(profilePath);
-                if (doc.Root == null || doc.Root.Name != "Profile")
+                if (doc.Root == null || doc.Root.Name != "DAQNavi")
                 {
-                    _logger.Warn("Invalid profile format: Root element 'Profile' not found");
+                    _logger.Warn($"Invalid profile format: Root element 'DAQNavi' not found (found: {doc.Root?.Name})");
                     return false;
                 }
+                
+                // Verificar que tenga al menos un elemento de configuración de dispositivo
+                var hasDeviceConfig = doc.Root.Element("DaqDevice") != null ||
+                                     doc.Root.Element("DaqAo") != null ||
+                                     doc.Root.Element("DaqDio") != null;
+                
+                if (!hasDeviceConfig)
+                {
+                    _logger.Warn("Invalid profile format: No device configuration found");
+                    return false;
+                }
+                
+                _logger.Info($"Profile validated successfully: {profilePath}");
                 return true;
             }
             catch (Exception ex)

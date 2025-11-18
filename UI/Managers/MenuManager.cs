@@ -55,6 +55,28 @@ namespace LAMP_DAQ_Control_v0_8.UI.Managers
             }
         }
         
+        /// <summary>
+        /// Muestra el menú del dispositivo ya inicializado (sin volver a pedir selección)
+        /// </summary>
+        public async Task ShowDeviceMenu(DAQDevice device)
+        {
+            try
+            {
+                if (_deviceMenuHandlers.TryGetValue(device.DeviceType, out var handler))
+                {
+                    await handler.HandleDeviceMenu(device);
+                }
+                else
+                {
+                    _consoleService.ShowError($"Tipo de dispositivo no soportado: {device.DeviceType}");
+                }
+            }
+            catch (Exception ex)
+            {
+                _consoleService.ShowError($"Error al mostrar menú del dispositivo: {ex.Message}");
+            }
+        }
+        
         private DAQDevice SelectDevice(List<DAQDevice> devices)
         {
             if (devices == null || !devices.Any())
