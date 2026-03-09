@@ -79,6 +79,9 @@
     <PackageReference Include="ScottPlot.WPF">
       <Version>4.1.68</Version>
     </PackageReference>
+    <PackageReference Include="Newtonsoft.Json">
+      <Version>13.0.3</Version>
+    </PackageReference>
   </ItemGroup>
   <ItemGroup>
     <!-- Main Program -->
@@ -97,9 +100,23 @@
     <Compile Include="Core\DAQ\Models\ChannelState.cs" />
     <Compile Include="Core\DAQ\Models\DeviceInfo.cs" />
     <Compile Include="Core\DAQ\Models\DeviceProfile.cs" />
+    <Compile Include="Core\DAQ\Models\DeviceType.cs" />
     <Compile Include="Core\DAQ\Services\ConsoleLogger.cs" />
+    <Compile Include="Core\DAQ\Services\FileLogger.cs" />
+    <Compile Include="Core\DAQ\Services\ActionLogger.cs" />
+    <Compile Include="Core\DAQ\Services\CompositeLogger.cs" />
     <Compile Include="Core\DAQ\Services\SignalGenerator.cs" />
     <Compile Include="Core\DAQ\Services\SignalLUT.cs" />
+    <!-- Signal Manager Core -->
+    <Compile Include="Core\SignalManager\Models\SignalEventType.cs" />
+    <Compile Include="Core\SignalManager\Models\SignalEvent.cs" />
+    <Compile Include="Core\SignalManager\Models\SignalSequence.cs" />
+    <Compile Include="Core\SignalManager\Interfaces\ISequenceEngine.cs" />
+    <Compile Include="Core\SignalManager\Interfaces\ISignalLibrary.cs" />
+    <Compile Include="Core\SignalManager\Interfaces\IExecutionEngine.cs" />
+    <Compile Include="Core\SignalManager\Services\SequenceEngine.cs" />
+    <Compile Include="Core\SignalManager\Services\SignalLibrary.cs" />
+    <Compile Include="Core\SignalManager\Services\ExecutionEngine.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <!-- Core DAQ Components -->
@@ -129,6 +146,11 @@
   <!-- Incluir archivos WPF -->
   <ItemGroup>
     <Compile Include="UI\WPF\ViewModels\*.cs" />
+    <Compile Include="UI\WPF\ViewModels\SignalManager\SignalManagerViewModel.cs" />
+    <Compile Include="UI\WPF\ViewModels\SignalManager\TimelineChannelViewModel.cs" />
+    <Compile Include="UI\WPF\Controls\TimelineControl.xaml.cs">
+      <DependentUpon>TimelineControl.xaml</DependentUpon>
+    </Compile>
     <Compile Include="UI\WPF\Converters\*.cs" />
     <Compile Include="UI\WPF\App.xaml.cs">
       <DependentUpon>App.xaml</DependentUpon>
@@ -141,6 +163,12 @@
     </Compile>
     <Compile Include="UI\WPF\Views\DigitalControlPanel.xaml.cs">
       <DependentUpon>DigitalControlPanel.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="UI\WPF\Views\SignalManager\SignalManagerView.xaml.cs">
+      <DependentUpon>SignalManagerView.xaml</DependentUpon>
+    </Compile>
+    <Compile Include="UI\WPF\Views\SignalManager\NewSequenceDialog.xaml.cs">
+      <DependentUpon>NewSequenceDialog.xaml</DependentUpon>
     </Compile>
   </ItemGroup>
   <!-- Incluir archivos XAML de WPF -->
@@ -158,6 +186,18 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="UI\WPF\Views\DigitalControlPanel.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="UI\WPF\Views\SignalManager\SignalManagerView.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="UI\WPF\Views\SignalManager\NewSequenceDialog.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="UI\WPF\Controls\TimelineControl.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

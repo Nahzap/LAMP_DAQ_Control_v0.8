@@ -1,0 +1,153 @@
+<UserControl x:Class="LAMP_DAQ_Control_v0_8.UI.WPF.Controls.TimelineControl"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:converters="clr-namespace:LAMP_DAQ_Control_v0_8.UI.WPF.Converters"
+             mc:Ignorable="d" 
+             d:DesignHeight="450" d:DesignWidth="800"
+             Background="White">
+    
+    <UserControl.Resources>
+        <converters:PercentageToPixelConverter x:Key="PercentageToPixelConverter"/>
+        <!-- Timeline Event Block Style -->
+        <Style x:Key="EventBlockStyle" TargetType="Border">
+            <Setter Property="CornerRadius" Value="3"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderBrush" Value="#333"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="BorderThickness" Value="2"/>
+                    <Setter Property="BorderBrush" Value="Black"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Channel Row Style -->
+        <Style x:Key="ChannelRowStyle" TargetType="Border">
+            <Setter Property="BorderBrush" Value="#DDD"/>
+            <Setter Property="BorderThickness" Value="0,0,0,1"/>
+            <Setter Property="Background" Value="White"/>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="#F0F8FF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+    </UserControl.Resources>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="30"/>  <!-- Header with time markers -->
+            <RowDefinition Height="*"/>   <!-- Channel rows -->
+        </Grid.RowDefinitions>
+
+        <!-- Time Ruler Header -->
+        <Border Grid.Row="0" Background="#E8E8E8" BorderBrush="#CCC" BorderThickness="0,0,0,1">
+            <Canvas x:Name="TimeRulerCanvas">
+                <!-- Time markers will be drawn here programmatically -->
+            </Canvas>
+        </Border>
+
+        <!-- Scrollable Channel Grid -->
+        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+            <Grid x:Name="ChannelGrid">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="120"/>  <!-- Channel labels -->
+                    <ColumnDefinition Width="*"/>    <!-- Timeline area -->
+                </Grid.ColumnDefinitions>
+
+                <!-- Channel Labels Column -->
+                <Border Grid.Column="0" Background="#F5F5F5" BorderBrush="#CCC" BorderThickness="0,0,1,0">
+                    <ItemsControl x:Name="ChannelLabelsControl" ItemsSource="{Binding TimelineChannels}">
+                        <ItemsControl.ItemsPanel>
+                            <ItemsPanelTemplate>
+                                <StackPanel/>
+                            </ItemsPanelTemplate>
+                        </ItemsControl.ItemsPanel>
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Border Height="40" Style="{StaticResource ChannelRowStyle}" Padding="10,0">
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{Binding ChannelName}" FontWeight="Bold" FontSize="11"/>
+                                        <TextBlock Text="{Binding DeviceType}" FontSize="9" Foreground="#666"/>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                </Border>
+
+                <!-- Timeline Events Area -->
+                <ItemsControl Grid.Column="1" x:Name="TimelineEventsControl" ItemsSource="{Binding TimelineChannels}">
+                    <ItemsControl.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <StackPanel/>
+                        </ItemsPanelTemplate>
+                    </ItemsControl.ItemsPanel>
+                    <ItemsControl.ItemTemplate>
+                        <DataTemplate>
+                            <Border Height="40" 
+                                    Style="{StaticResource ChannelRowStyle}"
+                                    AllowDrop="True"
+                                    Drop="OnChannelDrop"
+                                    DragOver="OnChannelDragOver"
+                                    Tag="{Binding}">
+                                <Grid>
+                                    <!-- Event blocks -->
+                                    <ItemsControl ItemsSource="{Binding Events}">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <Canvas/>
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemContainerStyle>
+                                            <Style>
+                                                <Setter Property="Canvas.Left">
+                                                    <Setter.Value>
+                                                        <MultiBinding Converter="{StaticResource PercentageToPixelConverter}">
+                                                            <Binding Path="LeftPosition"/>
+                                                            <Binding RelativeSource="{RelativeSource AncestorType=Border}" Path="ActualWidth"/>
+                                                        </MultiBinding>
+                                                    </Setter.Value>
+                                                </Setter>
+                                                <Setter Property="Canvas.Top" Value="4"/>
+                                            </Style>
+                                        </ItemsControl.ItemContainerStyle>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Style="{StaticResource EventBlockStyle}"
+                                                        Height="32"
+                                                        Background="{Binding Color}"
+                                                        ToolTip="{Binding DisplayText}"
+                                                        MouseLeftButtonDown="OnEventClick"
+                                                        Tag="{Binding}"
+                                                        Cursor="Hand">
+                                                    <Border.Width>
+                                                        <MultiBinding Converter="{StaticResource PercentageToPixelConverter}">
+                                                            <Binding Path="Width"/>
+                                                            <Binding RelativeSource="{RelativeSource AncestorType=Border, AncestorLevel=2}" Path="ActualWidth"/>
+                                                        </MultiBinding>
+                                                    </Border.Width>
+                                                    <TextBlock Text="{Binding SignalEvent.Name}" 
+                                                               Foreground="White"
+                                                               FontSize="10"
+                                                               FontWeight="Bold"
+                                                               Margin="5,0"
+                                                               VerticalAlignment="Center"
+                                                               TextTrimming="CharacterEllipsis"/>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </Grid>
+                            </Border>
+                        </DataTemplate>
+                    </ItemsControl.ItemTemplate>
+                </ItemsControl>
+            </Grid>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

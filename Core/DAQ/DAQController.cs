@@ -20,7 +20,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
         private readonly IDeviceManager _deviceManager;
         private readonly IProfileManager _profileManager;
         private readonly IChannelManager _channelManager;
-        private readonly ISignalGenerator _signalGenerator;
+        private ISignalGenerator _signalGenerator; // Not readonly - recreated on device switch
         private readonly ILogger _logger;
         private bool _disposed;
         #endregion
@@ -109,23 +109,33 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
 
             try
             {
-                if (_deviceManager.IsInitialized)
-                {
-                    _logger.Info("Device is already initialized");
-                    return;
-                }
-
-                // Verificar si el perfil proporcionado es compatible con el tipo de dispositivo
+                // Determinar tipo de dispositivo objetivo
                 bool isDigitalProfile = profileName != null && 
                                        (profileName.Contains("PCI1735") || profileName.Contains("1735"));
                 bool isAnalogProfile = profileName != null && 
                                       (profileName.Contains("PCIe1824") || profileName.Contains("1824"));
+                
+                DeviceType targetType = isDigitalProfile ? DeviceType.Digital : 
+                                       isAnalogProfile ? DeviceType.Analog : 
+                                       DeviceType.Unknown;
+                
+                // CRITICAL FIX: Solo bloquear si es el MISMO tipo de dispositivo
+                if (_deviceManager.IsInitialized && _deviceManager.CurrentDeviceType == targetType)
+                {
+                    _logger.Info($"Device is already initialized (Type: {_deviceManager.CurrentDeviceType}, Target: {targetType})");
+                    return;
+                }
                 
                 _logger.Info($"Inicializando dispositivo {deviceNumber} con perfil: {profileName ?? "<ninguno>"}" +
                              $" (Digital: {isDigitalProfile}, Analógico: {isAnalogProfile})");
 
                 // Initialize the device with profile name to help determine device type
                 _deviceManager.InitializeDevice(deviceNumber, profileName);
+                
+                // CRITICAL FIX: Recreate SignalGenerator after device initialization
+                // because device switching disposes old controllers and creates new ones
+                _signalGenerator = new SignalGenerator(_deviceManager.Device, _logger);
+                _logger.Info("SignalGenerator recreated with new device instance");
                 
                 // Verificar que el perfil sea compatible con el tipo de dispositivo detectado
                 var deviceInfo = _deviceManager.GetDeviceInfo();

@@ -1,8 +1,10 @@
 using System;
 using System.Collections.ObjectModel;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using LAMP_DAQ_Control_v0_8.Core.DAQ;
+using LAMP_DAQ_Control_v0_8.Core.DAQ.Services;
 using LAMP_DAQ_Control_v0_8.UI.Models;
 using LAMP_DAQ_Control_v0_8.UI.Services;
 
@@ -15,6 +17,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
     {
         private readonly DAQController _controller;
         private readonly AnalogOutputTracker _tracker;
+        private ActionLogger _actionLogger;
         private DAQDevice _currentDevice;
         
         private int _selectedChannel;
@@ -32,8 +35,14 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             get => _selectedChannel;
             set
             {
-                if (SetProperty(ref _selectedChannel, value))
+                System.Console.WriteLine($"[SETTER CALLED] SelectedChannel setter invoked with value: {value}");
+                var oldValue = _selectedChannel;
+                bool changed = SetProperty(ref _selectedChannel, value);
+                System.Console.WriteLine($"[SETTER] SetProperty returned: {changed}, old={oldValue}, new={value}");
+                if (changed)
                 {
+                    _actionLogger?.LogValueChange("SelectedChannel", oldValue, value, "AnalogControlViewModel");
+                    _actionLogger?.LogUserAction("Channel Selected", $"Analog Channel {value} selected for operations");
                     UpdateChartData();
                 }
             }
@@ -42,37 +51,91 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
         public double Voltage
         {
             get => _voltage;
-            set => SetProperty(ref _voltage, value);
+            set
+            {
+                System.Console.WriteLine($"[SETTER CALLED] Voltage setter invoked with value: {value}");
+                var oldValue = _voltage;
+                bool changed = SetProperty(ref _voltage, value);
+                System.Console.WriteLine($"[SETTER] SetProperty returned: {changed}, old={oldValue}, new={value}");
+                if (changed)
+                {
+                    _actionLogger?.LogValueChange("Voltage (DC)", oldValue, value, "AnalogControlViewModel");
+                    _actionLogger?.LogUserAction("DC Voltage Value Changed", $"Voltage set to {value}V for Channel {SelectedChannel}");
+                }
+            }
         }
         
         public double TargetVoltage
         {
             get => _targetVoltage;
-            set => SetProperty(ref _targetVoltage, value);
+            set
+            {
+                var oldValue = _targetVoltage;
+                if (SetProperty(ref _targetVoltage, value))
+                {
+                    _actionLogger?.LogValueChange("Target Voltage (Ramp)", oldValue, value, "AnalogControlViewModel");
+                    _actionLogger?.LogUserAction("Ramp Target Voltage Changed", $"Target voltage set to {value}V for Channel {SelectedChannel}");
+                }
+            }
         }
         
         public int RampDuration
         {
             get => _rampDuration;
-            set => SetProperty(ref _rampDuration, value);
+            set
+            {
+                System.Console.WriteLine($"[SETTER CALLED] RampDuration setter invoked with value: {value}");
+                var oldValue = _rampDuration;
+                bool changed = SetProperty(ref _rampDuration, value);
+                System.Console.WriteLine($"[SETTER] SetProperty returned: {changed}, old={oldValue}, new={value}");
+                if (changed)
+                {
+                    _actionLogger?.LogValueChange("Ramp Duration", oldValue, value, "AnalogControlViewModel");
+                    _actionLogger?.LogUserAction("Ramp Duration Changed", $"Duration set to {value}ms for Channel {SelectedChannel}");
+                }
+            }
         }
         
         public double Frequency
         {
             get => _frequency;
-            set => SetProperty(ref _frequency, value);
+            set
+            {
+                var oldValue = _frequency;
+                if (SetProperty(ref _frequency, value))
+                {
+                    _actionLogger?.LogValueChange("Signal Frequency", oldValue, value, "AnalogControlViewModel");
+                    _actionLogger?.LogUserAction("Signal Frequency Changed", $"Frequency set to {value}Hz for Channel {SelectedChannel}");
+                }
+            }
         }
         
         public double Amplitude
         {
             get => _amplitude;
-            set => SetProperty(ref _amplitude, value);
+            set
+            {
+                var oldValue = _amplitude;
+                if (SetProperty(ref _amplitude, value))
+                {
+                    _actionLogger?.LogValueChange("Signal Amplitude", oldValue, value, "AnalogControlViewModel");
+                    _actionLogger?.LogUserAction("Signal Amplitude Changed", $"Amplitude set to {value}V for Channel {SelectedChannel}");
+                }
+            }
         }
         
         public double Offset
         {
             get => _offset;
-            set => SetProperty(ref _offset, value);
+            set
+            {
+                var oldValue = _offset;
+                if (SetProperty(ref _offset, value))
+                {
+                    _actionLogger?.LogValueChange("Signal Offset", oldValue, value, "AnalogControlViewModel");
+                    _actionLogger?.LogUserAction("Signal Offset Changed", $"Offset set to {value}V for Channel {SelectedChannel}");
+                }
+            }
         }
         
         public bool IsGenerating
@@ -90,12 +153,16 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
         public ICommand StopSignalCommand { get; }
         public ICommand ShowInfoCommand { get; }
         
+        private bool _isRampGenerating;
+        
         public AnalogControlViewModel(DAQController controller)
         {
             _controller = controller ?? throw new ArgumentNullException(nameof(controller));
             _tracker = new AnalogOutputTracker();
             
             ChartData = new ObservableCollection<DataPoint>();
+            
+            System.Console.WriteLine($"[VIEWMODEL] AnalogControlViewModel created. Instance: {GetHashCode()}");
             
             // Valores por defecto
             Voltage = 0.0;
@@ -109,15 +176,38 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             _tracker.DataRecorded += OnDataRecorded;
             
             // Configurar comandos
-            SetDcCommand = new RelayCommand(SetDc, () => !IsGenerating);
-            GenerateRampCommand = new RelayCommand(GenerateRamp, () => !IsGenerating);
-            GenerateSignalCommand = new RelayCommand(GenerateSignal, () => !IsGenerating);
+            SetDcCommand = new RelayCommand(SetDc, () => !IsGenerating && !_isRampGenerating);
+            GenerateRampCommand = new RelayCommand(async () => await GenerateRampAsync(), () => !IsGenerating && !_isRampGenerating);
+            GenerateSignalCommand = new RelayCommand(GenerateSignal, () => !IsGenerating && !_isRampGenerating);
             StopSignalCommand = new RelayCommand(StopSignal, () => IsGenerating);
             ShowInfoCommand = new RelayCommand(ShowInfo);
         }
         
+        public void SetActionLogger(ActionLogger actionLogger)
+        {
+            _actionLogger = actionLogger;
+            if (_actionLogger != null)
+            {
+                _actionLogger.LogUserAction("AnalogControlViewModel Logger Connected", "Action logging enabled for analog control");
+                System.Console.WriteLine("[DEBUG] AnalogControlViewModel: ActionLogger successfully connected");
+            }
+            else
+            {
+                System.Console.WriteLine("[DEBUG] AnalogControlViewModel: ActionLogger is NULL!");
+            }
+        }
+        
         public void Initialize(DAQDevice device)
         {
+            if (_actionLogger == null)
+            {
+                System.Diagnostics.Debug.WriteLine("WARNING: ActionLogger is NULL in AnalogControlViewModel.Initialize!");
+            }
+            else
+            {
+                _actionLogger.LogUserAction("Initialize Analog Device", $"{device.Name} (ID: {device.DeviceNumber})");
+                _actionLogger.LogUserAction("AnalogControlViewModel Ready", $"Logging enabled for analog operations on {device.Name}");
+            }
             _currentDevice = device;
             _tracker.ClearAllHistory();
             ChartData.Clear();
@@ -125,13 +215,21 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
         
         private void SetDc()
         {
+            _actionLogger?.LogButtonClick("SetDC", "AnalogControlViewModel");
+            _actionLogger?.LogUserAction("Set DC Voltage", $"Channel: {SelectedChannel}, Voltage: {Voltage}V");
+            
             try
             {
+                _actionLogger?.StartTiming();
                 _controller.WriteVoltage(SelectedChannel, Voltage);
+                _actionLogger?.StopTiming($"Write DC {Voltage}V to Channel {SelectedChannel}");
+                
                 _tracker.RecordWrite(SelectedChannel, Voltage, DateTime.Now);
+                _actionLogger?.LogUserAction("DC Voltage Set Successfully", $"Channel {SelectedChannel} = {Voltage}V");
             }
             catch (Exception ex)
             {
+                _actionLogger?.LogException("SetDC", ex);
                 MessageBox.Show(
                     $"Error al establecer DC:\n\n{ex.Message}",
                     "Error",
@@ -140,11 +238,28 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             }
         }
         
-        private void GenerateRamp()
+        private async Task GenerateRampAsync()
         {
+            if (_isRampGenerating)
+            {
+                _actionLogger?.LogUserAction("Ramp Generation Blocked", "A ramp is already in progress");
+                return;
+            }
+            
+            _actionLogger?.LogButtonClick("GenerateRamp", "AnalogControlViewModel");
+            _actionLogger?.LogUserAction("Generate Ramp", 
+                $"Channel: {SelectedChannel}, Target: {TargetVoltage}V, Duration: {RampDuration}ms");
+            
+            _isRampGenerating = true;
+            
             try
             {
-                _controller.RampChannelValue(SelectedChannel, TargetVoltage, RampDuration);
+                _actionLogger?.StartTiming();
+                
+                // CRITICAL FIX: Properly await the async operation
+                await _controller.RampChannelValue(SelectedChannel, TargetVoltage, RampDuration);
+                
+                _actionLogger?.StopTiming($"Ramp Channel {SelectedChannel} to {TargetVoltage}V");
                 
                 // Registrar punto inicial y final
                 _tracker.RecordWrite(SelectedChannel, Voltage, DateTime.Now);
@@ -152,26 +267,65 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
                     DateTime.Now.AddMilliseconds(RampDuration));
                     
                 Voltage = TargetVoltage;
+                _actionLogger?.LogUserAction("Ramp Completed", $"Channel {SelectedChannel} reached {TargetVoltage}V");
+            }
+            catch (ObjectDisposedException ex)
+            {
+                _actionLogger?.LogException("GenerateRamp - Device Disposed", ex);
+                System.Console.WriteLine($"[ERROR] Device disposed during ramp: {ex.Message}");
+                MessageBox.Show(
+                    $"El dispositivo fue desconectado durante la rampa.\n\nDetalles: {ex.Message}",
+                    "Error - Dispositivo Desconectado",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            catch (ArgumentOutOfRangeException ex)
+            {
+                _actionLogger?.LogException("GenerateRamp - Invalid Parameters", ex);
+                System.Console.WriteLine($"[ERROR] Invalid ramp parameters: {ex.Message}");
+                MessageBox.Show(
+                    $"Parámetros de rampa inválidos.\n\nDetalles: {ex.Message}",
+                    "Error - Parámetros Inválidos",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
             }
             catch (Exception ex)
             {
+                _actionLogger?.LogException("GenerateRamp - Unexpected Error", ex);
+                System.Console.WriteLine($"[ERROR] Ramp generation failed: {ex.GetType().Name} - {ex.Message}");
+                System.Console.WriteLine($"[ERROR] Stack trace: {ex.StackTrace}");
                 MessageBox.Show(
-                    $"Error al generar rampa:\n\n{ex.Message}",
-                    "Error",
+                    $"Error inesperado al generar rampa:\n\n{ex.GetType().Name}: {ex.Message}\n\nStack Trace:\n{ex.StackTrace}",
+                    "Error - Generación de Rampa",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+            }
+            finally
+            {
+                _isRampGenerating = false;
+                System.Console.WriteLine($"[DEBUG] Ramp generation completed. _isRampGenerating = false");
             }
         }
         
         private void GenerateSignal()
         {
+            _actionLogger?.LogButtonClick("GenerateSignal", "AnalogControlViewModel");
+            _actionLogger?.LogUserAction("Start Signal Generation", 
+                $"Channel: {SelectedChannel}, Freq: {Frequency}Hz, Amp: {Amplitude}V, Offset: {Offset}V");
+            
             try
             {
+                _actionLogger?.StartTiming();
                 _controller.StartSignalGeneration(SelectedChannel, Frequency, Amplitude, Offset);
+                _actionLogger?.StopTiming($"Start Signal on Channel {SelectedChannel}");
+                
                 IsGenerating = true;
+                _actionLogger?.LogUserAction("Signal Generation Started", 
+                    $"Channel {SelectedChannel}: {Frequency}Hz sine wave, {Amplitude}V amplitude, {Offset}V offset");
             }
             catch (Exception ex)
             {
+                _actionLogger?.LogException("GenerateSignal", ex);
                 MessageBox.Show(
                     $"Error al generar señal:\n\n{ex.Message}",
                     "Error",
@@ -182,13 +336,18 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
         
         private void StopSignal()
         {
+            _actionLogger?.LogButtonClick("StopSignal", "AnalogControlViewModel");
+            _actionLogger?.LogUserAction("Stop Signal Generation", $"Channel: {SelectedChannel}");
+            
             try
             {
                 _controller.StopSignalGeneration();
                 IsGenerating = false;
+                _actionLogger?.LogUserAction("Signal Generation Stopped", $"Channel {SelectedChannel}");
             }
             catch (Exception ex)
             {
+                _actionLogger?.LogException("StopSignal", ex);
                 MessageBox.Show(
                     $"Error al detener señal:\n\n{ex.Message}",
                     "Error",
@@ -199,9 +358,15 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
         
         private void ShowInfo()
         {
+            _actionLogger?.LogButtonClick("ShowInfo", "AnalogControlViewModel");
+            _actionLogger?.LogUserAction("Show Device Info", "Displaying device information");
+            
             try
             {
                 var info = _controller.GetDeviceInfo();
+                _actionLogger?.LogUserAction("Device Info Retrieved", 
+                    $"{info.Name}, Channels: {info.Channels}, Type: {info.DeviceType}");
+                
                 MessageBox.Show(
                     $"Dispositivo: {info.Name}\n" +
                     $"Canales: {info.Channels}\n" +
@@ -213,6 +378,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             }
             catch (Exception ex)
             {
+                _actionLogger?.LogException("ShowInfo", ex);
                 MessageBox.Show(
                     $"Error al obtener información:\n\n{ex.Message}",
                     "Error",

@@ -1,0 +1,7 @@
+LAMP DAQ Control v0.8 - Latest Session Log
+This file is overwritten on each application start.
+For permanent logs, check: %APPDATA%\LAMP_DAQ_Control\Logs\
+
+========================================
+Session started: [Will be updated by application]
+========================================

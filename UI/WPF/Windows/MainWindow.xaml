@@ -43,7 +43,16 @@
                 </StackPanel>
                 
                 <StackPanel Orientation="Horizontal" DockPanel.Dock="Right" HorizontalAlignment="Right">
-                    <Button Content="🔄 Refrescar" 
+                    <Button Content="� Signal Manager" 
+                            Command="{Binding OpenSignalManagerCommand}"
+                            Background="#9B59B6" 
+                            Foreground="White"
+                            BorderThickness="0"
+                            Padding="15,5"
+                            Margin="5,0"
+                            Cursor="Hand"
+                            ToolTip="Abrir Signal Manager para control de secuencias"/>
+                    <Button Content="�🔄 Refrescar" 
                             Command="{Binding RefreshDevicesCommand}"
                             Background="#3498DB" 
                             Foreground="White"

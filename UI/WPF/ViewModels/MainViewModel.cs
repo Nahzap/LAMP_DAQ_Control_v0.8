@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Input;
 using LAMP_DAQ_Control_v0_8.Core.DAQ;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Models;
+using LAMP_DAQ_Control_v0_8.Core.DAQ.Services;
 using LAMP_DAQ_Control_v0_8.UI.Models;
 using LAMP_DAQ_Control_v0_8.UI.Services;
 
@@ -16,6 +17,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
     {
         private readonly DAQController _controller;
         private readonly DeviceDetectionService _detectionService;
+        private readonly FileLogger _fileLogger;
+        private readonly ActionLogger _actionLogger;
         private DAQDevice _selectedDevice;
         private string _statusMessage;
         private bool _isDeviceInitialized;
@@ -29,6 +32,11 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             {
                 if (SetProperty(ref _selectedDevice, value))
                 {
+                    _actionLogger?.LogValueChange("SelectedDevice", 
+                        _selectedDevice?.Name ?? "None", 
+                        value?.Name ?? "None", 
+                        "MainViewModel");
+                    
                     OnPropertyChanged(nameof(IsAnalogDevice));
                     OnPropertyChanged(nameof(IsDigitalDevice));
                     OnPropertyChanged(nameof(DeviceTypeText));
@@ -39,6 +47,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
                     
                     if (value != null)
                     {
+                        _actionLogger?.LogUserAction("Device Selected", $"{value.Name} (ID: {value.DeviceNumber})");
                         InitializeDevice(value);
                     }
                 }
@@ -71,15 +80,26 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
         // Commands
         public ICommand RefreshDevicesCommand { get; }
         public ICommand ExitCommand { get; }
+        public ICommand OpenSignalManagerCommand { get; }
         
         public MainViewModel()
         {
+            // Inicializar sistema de logging
+            _fileLogger = new FileLogger();
+            var consoleLogger = new ConsoleLogger();
+            var compositeLogger = new CompositeLogger(_fileLogger, consoleLogger);
+            _actionLogger = new ActionLogger(compositeLogger);
+            
+            _actionLogger.LogUserAction("Application Started");
+            _actionLogger.LogUserAction("MainViewModel Initializing");
+            
             // Inicializar controlador
-            _controller = new DAQController();
+            _controller = new DAQController(compositeLogger);
             _detectionService = new DeviceDetectionService(new Services.ConsoleService());
             
             // Inicializar ViewModels hijos
             AnalogControl = new AnalogControlViewModel(_controller);
+            AnalogControl.SetActionLogger(_actionLogger);
             DigitalMonitor = new DigitalMonitorViewModel();
             
             // Inicializar colecciones
@@ -88,19 +108,27 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             // Configurar comandos
             RefreshDevicesCommand = new RelayCommand(RefreshDevices);
             ExitCommand = new RelayCommand(Exit);
+            OpenSignalManagerCommand = new RelayCommand(OpenSignalManager);
             
             // Detectar dispositivos al inicio
             StatusMessage = "Iniciando...";
+            _actionLogger.LogUserAction("Refreshing Devices", "Initial device detection");
             RefreshDevices();
         }
         
         private void RefreshDevices()
         {
+            _actionLogger?.LogButtonClick("RefreshDevices", "MainViewModel");
+            _actionLogger?.LogUserAction("Refreshing Devices", "Scanning for DAQ devices");
+            
             try
             {
+                _actionLogger?.StartTiming();
                 StatusMessage = "Detectando dispositivos...";
                 
                 var detectedDevices = _detectionService.DetectDAQDevices();
+                
+                _actionLogger?.StopTiming("Device Detection");
                 
                 Devices.Clear();
                 foreach (var device in detectedDevices)
@@ -132,6 +160,11 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
             }
+        }
+        
+        public ActionLogger GetActionLogger()
+        {
+            return _actionLogger;
         }
         
         private void InitializeDevice(DAQDevice device)
@@ -166,6 +199,39 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
                     "Error",
                     MessageBoxButton.OK,
                     MessageBoxImage.Error);
+            }
+        }
+        
+        private void OpenSignalManager()
+        {
+            _actionLogger?.LogButtonClick("OpenSignalManager", "MainViewModel");
+            _actionLogger?.LogUserAction("Opening Signal Manager", "User opened Signal Manager window");
+            
+            try
+            {
+                // Validate that devices have been detected
+                if (Devices == null || Devices.Count == 0)
+                {
+                    MessageBox.Show(
+                        "No se han detectado dispositivos DAQ.\n\nPor favor, ejecute la detección de dispositivos primero.",
+                        "Sin Dispositivos",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
+                    return;
+                }
+
+                var view = new UI.WPF.Views.SignalManager.SignalManagerView();
+                var viewModel = new UI.WPF.ViewModels.SignalManager.SignalManagerViewModel(_controller, Devices);
+                view.DataContext = viewModel;
+                view.Show();
+                
+                _actionLogger?.LogUserAction("Signal Manager Opened", $"Window displayed with {Devices.Count} devices");
+            }
+            catch (Exception ex)
+            {
+                _actionLogger?.LogException("Failed to open Signal Manager", ex);
+                MessageBox.Show($"Error al abrir Signal Manager: {ex.Message}", "Error", 
+                    MessageBoxButton.OK, MessageBoxImage.Error);
             }
         }
         

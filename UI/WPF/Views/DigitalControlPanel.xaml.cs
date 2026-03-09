@@ -5,6 +5,7 @@ using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Media;
 using Automation.BDaq;
+using LAMP_DAQ_Control_v0_8.Core.DAQ.Services;
 using LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels;
 
 namespace LAMP_DAQ_Control_v0_8.UI.WPF.Views
@@ -16,6 +17,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Views
     {
         private InstantDoCtrl _doCtrl;
         private byte[] _portStates; // Estado actual de cada puerto (0-3)
+        private ActionLogger _actionLogger;
         
         public DigitalControlPanel()
         {
@@ -29,6 +31,12 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Views
             
             // Actualizar visualización inicial
             Loaded += (s, e) => UpdateOutputStatesDisplay();
+        }
+        
+        public void SetActionLogger(ActionLogger logger)
+        {
+            _actionLogger = logger;
+            _actionLogger?.LogUserAction("DigitalControlPanel Initialized");
         }
         
         private void UpdateOutputStatesDisplay()
@@ -73,10 +81,14 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Views
         
         private void OnWritePortClick(object sender, RoutedEventArgs e)
         {
+            _actionLogger?.LogButtonClick("WritePort", "DigitalControlPanel");
+            
             try
             {
                 int port = int.Parse(WritePortNumber.Text);
                 byte value = byte.Parse(WritePortValue.Text);
+                
+                _actionLogger?.LogUserAction("Write Digital Port", $"Port: {port}, Value: {value} (0x{value:X2}, Binary: {Convert.ToString(value, 2).PadLeft(8, '0')})");
                 
                 if (port < 0 || port > 3)
                 {
@@ -88,23 +100,36 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Views
                 {
                     _doCtrl.SelectedDevice = new DeviceInformation(1);
                     
+                    _actionLogger?.StartTiming();
                     ErrorCode result = _doCtrl.Write(port, value);
+                    _actionLogger?.StopTiming($"Digital Port Write P{port}={value}");
+                    
                     if (result == ErrorCode.Success)
                     {
                         _portStates[port] = value; // Actualizar estado en memoria
                         UpdateOutputStatesDisplay(); // Actualizar visualización
+                        
+                        _actionLogger?.LogUserAction("Digital Port Written Successfully", 
+                            $"Port {port} = {value} (0x{value:X2}, Binary: {Convert.ToString(value, 2).PadLeft(8, '0')})");
+                        
                         MessageBox.Show($"Puerto {port} = {value} (0x{value:X2}) escrito correctamente", 
                             "Éxito", MessageBoxButton.OK, MessageBoxImage.Information);
                     }
                     else
                     {
+                        _actionLogger?.LogWarning($"Failed to write digital port: {result}", "DigitalControlPanel");
                         MessageBox.Show($"Error al escribir: {result}", "Error", 
                             MessageBoxButton.OK, MessageBoxImage.Error);
                     }
                 }
+                else
+                {
+                    _actionLogger?.LogWarning("No digital devices available", "DigitalControlPanel");
+                }
             }
             catch (Exception ex)
             {
+                _actionLogger?.LogException("WritePort", ex);
                 MessageBox.Show($"Error: {ex.Message}", "Error", 
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -112,25 +137,34 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Views
         
         private void OnResetAllPortsClick(object sender, RoutedEventArgs e)
         {
+            _actionLogger?.LogButtonClick("ResetAllPorts", "DigitalControlPanel");
+            _actionLogger?.LogUserAction("Reset All Digital Ports", "Setting all 4 ports to 0");
+            
             try
             {
                 if (_doCtrl.SupportedDevices.Count > 0)
                 {
                     _doCtrl.SelectedDevice = new DeviceInformation(1);
                     
+                    _actionLogger?.StartTiming();
                     for (int port = 0; port < 4; port++)
                     {
-                        _doCtrl.Write(port, 0);
+                        ErrorCode result = _doCtrl.Write(port, 0);
                         _portStates[port] = 0; // Actualizar estado en memoria
+                        _actionLogger?.LogUserAction("Port Reset", $"Port {port} = 0");
                     }
+                    _actionLogger?.StopTiming("Reset All 4 Ports");
+                    
                     UpdateOutputStatesDisplay(); // Actualizar visualización
                     
+                    _actionLogger?.LogUserAction("All Ports Reset Successfully", "All 4 ports set to 0");
                     MessageBox.Show("Todos los puertos reseteados a 0", "Éxito", 
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
             {
+                _actionLogger?.LogException("ResetAllPorts", ex);
                 MessageBox.Show($"Error: {ex.Message}", "Error", 
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -138,25 +172,34 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Views
         
         private void OnSetAllPortsClick(object sender, RoutedEventArgs e)
         {
+            _actionLogger?.LogButtonClick("SetAllPorts", "DigitalControlPanel");
+            _actionLogger?.LogUserAction("Set All Digital Ports", "Setting all 4 ports to 255 (0xFF)");
+            
             try
             {
                 if (_doCtrl.SupportedDevices.Count > 0)
                 {
                     _doCtrl.SelectedDevice = new DeviceInformation(1);
                     
+                    _actionLogger?.StartTiming();
                     for (int port = 0; port < 4; port++)
                     {
-                        _doCtrl.Write(port, 255);
+                        ErrorCode result = _doCtrl.Write(port, 255);
                         _portStates[port] = 255; // Actualizar estado en memoria
+                        _actionLogger?.LogUserAction("Port Set", $"Port {port} = 255 (0xFF, all bits HIGH)");
                     }
+                    _actionLogger?.StopTiming("Set All 4 Ports to 255");
+                    
                     UpdateOutputStatesDisplay(); // Actualizar visualización
                     
+                    _actionLogger?.LogUserAction("All Ports Set Successfully", "All 4 ports set to 255 (all bits HIGH)");
                     MessageBox.Show("Todos los puertos activados a 255", "Éxito", 
                         MessageBoxButton.OK, MessageBoxImage.Information);
                 }
             }
             catch (Exception ex)
             {
+                _actionLogger?.LogException("SetAllPorts", ex);
                 MessageBox.Show($"Error: {ex.Message}", "Error", 
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }
@@ -176,6 +219,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Views
                 int port = int.Parse(parts[0]);
                 int bit = int.Parse(parts[1]);
                 bool isChecked = checkbox.IsChecked ?? false;
+                
+                _actionLogger?.LogUserAction("Digital Bit Toggle", 
+                    $"Port {port}, Bit {bit}: {(isChecked ? "ON (1)" : "OFF (0)")}");
                 
                 if (_doCtrl.SupportedDevices.Count > 0)
                 {
@@ -197,26 +243,40 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Views
                         newValue = (byte)(currentValue & ~(1 << bit));
                     }
                     
+                    _actionLogger?.LogUserAction("Digital Port Value Change", 
+                        $"Port {port}: {currentValue} (0x{currentValue:X2}) → {newValue} (0x{newValue:X2}), Bit {bit} = {(isChecked ? "1" : "0")}");
+                    
                     // Escribir nuevo valor al hardware
+                    _actionLogger?.StartTiming();
                     ErrorCode result = _doCtrl.Write(port, newValue);
+                    _actionLogger?.StopTiming($"Write Bit P{port}.{bit}={(isChecked ? "1" : "0")}");
                     
                     if (result == ErrorCode.Success)
                     {
                         // Actualizar estado en memoria
                         _portStates[port] = newValue;
                         UpdateOutputStatesDisplay(); // Actualizar visualización
+                        
+                        _actionLogger?.LogUserAction("Digital Bit Written Successfully", 
+                            $"Port {port}, Bit {bit} = {(isChecked ? "1" : "0")}, Port Value = {newValue} (0x{newValue:X2}, Binary: {Convert.ToString(newValue, 2).PadLeft(8, '0')})");
                     }
                     else
                     {
+                        _actionLogger?.LogWarning($"Failed to write digital bit: {result}", "DigitalControlPanel");
                         MessageBox.Show($"Error al escribir bit: {result}", "Error", 
                             MessageBoxButton.OK, MessageBoxImage.Error);
                         // Revertir checkbox
                         checkbox.IsChecked = !isChecked;
                     }
                 }
+                else
+                {
+                    _actionLogger?.LogWarning("No digital devices available for bit toggle", "DigitalControlPanel");
+                }
             }
             catch (Exception ex)
             {
+                _actionLogger?.LogException("BitToggle", ex);
                 MessageBox.Show($"Error al controlar bit: {ex.Message}", "Error", 
                     MessageBoxButton.OK, MessageBoxImage.Error);
             }

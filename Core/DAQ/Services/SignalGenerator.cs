@@ -23,6 +23,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
 
         // Diccionario para manejar múltiples canales activos simultáneamente
         private readonly Dictionary<int, CancellationTokenSource> _activeChannels = new Dictionary<int, CancellationTokenSource>();
+        
+        // CRITICAL FIX: Track last written values per channel for smooth ramps
+        private readonly Dictionary<int, double> _lastWrittenValues = new Dictionary<int, double>();
 
         /// <summary>
         /// Initializes a new instance of the SignalGenerator class
@@ -139,6 +142,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
             try
             {
                 _device.Write(channel, value);
+                // Track last written value
+                _lastWrittenValues[channel] = value;
                 _logger.Debug($"DC value set on channel {channel}: {value}V");
             }
             catch (Exception ex)
@@ -161,7 +166,15 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
             try
             {
                 const int steps = 100;
-                double currentValue = 0.0; // Would get actual current value in real implementation
+                
+                // CRITICAL FIX: Get last written value for this channel
+                // This enables smooth ramps in both directions (ascending and descending)
+                double currentValue = _lastWrittenValues.ContainsKey(channel) 
+                    ? _lastWrittenValues[channel] 
+                    : 0.0; // Default to 0V if no previous write
+                
+                _logger.Debug($"Starting ramp from {currentValue}V to {targetValue}V over {durationMs}ms");
+                
                 double step = (targetValue - currentValue) / steps;
                 int delay = durationMs / steps;
 
@@ -176,6 +189,10 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
 
                 // Ensure we hit the exact target value
                 _device.Write(channel, targetValue);
+                
+                // Track final value
+                _lastWrittenValues[channel] = targetValue;
+                
                 _logger.Debug($"Ramp completed on channel {channel} to {targetValue}V over {durationMs}ms");
             }
             catch (Exception ex)
@@ -294,8 +311,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                 
                 _logger.Info($"Accediendo a LUT CSV: {csvPath}");
                 
-                // Usar una tasa de muestreo óptima para reducir ripple
-                const double sampleRate = 1000000.0; // 1 MHz.
+                // Sample rate será calculado dinámicamente más adelante
+                // basado en la frecuencia deseada y samples per cycle
                 
                 // OPTIMIZACIÓN: Eliminar Thread.Sleep innecesarios (-30% latencia)
                 // Escribir valor inicial directamente sin delays
@@ -303,12 +320,25 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                 
                 _logger.Info($"Starting sine wave generation on channel {channel}: {frequency}Hz, {amplitude}V amplitude, {offset}V offset");
                 
-                // Calcular el número óptimo de muestras por ciclo para esta frecuencia
-                int samplesPerCycle = (int)Math.Round(sampleRate / frequency);
-                samplesPerCycle = Math.Max(20, Math.Min(samplesPerCycle, 5000));
-                double actualFrequency = sampleRate / samplesPerCycle;
+                // CRITICAL FIX: Calcular samples per cycle razonable y sample rate dinámico
+                // Para frecuencias bajas, usar menos samples (100-200)
+                // Para frecuencias altas, usar más samples (500-1000)
+                int samplesPerCycle;
+                if (frequency < 10) {
+                    samplesPerCycle = 100;  // Frecuencias muy bajas: 100 samples
+                } else if (frequency < 50) {
+                    samplesPerCycle = 200;  // Frecuencias bajas: 200 samples
+                } else if (frequency < 500) {
+                    samplesPerCycle = 500;  // Frecuencias medias: 500 samples
+                } else {
+                    samplesPerCycle = 1000; // Frecuencias altas: 1000 samples
+                }
                 
-                _logger.Info($"Using CSV LUT for {samplesPerCycle} samples per cycle at {actualFrequency:F2}Hz");
+                // Calcular sample rate dinámico basado en frecuencia deseada
+                // Esto asegura que la frecuencia real coincida con la solicitada
+                double sampleRate = frequency * samplesPerCycle;
+                
+                _logger.Info($"Using {samplesPerCycle} samples per cycle at {sampleRate:F0} samples/sec for {frequency}Hz signal");
                 
                 // Inicializar el temporizador de alta precisión
                 var stopwatch = new System.Diagnostics.Stopwatch();

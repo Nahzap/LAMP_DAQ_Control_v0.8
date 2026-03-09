@@ -31,6 +31,11 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Interfaces
         string DeviceModel { get; }
 
         /// <summary>
+        /// Gets the current device type (Analog, Digital, or Unknown)
+        /// </summary>
+        DeviceType CurrentDeviceType { get; }
+
+        /// <summary>
         /// Initializes the device with the specified device number and profile name
         /// </summary>
         /// <param name="deviceNumber">Device number to initialize</param>

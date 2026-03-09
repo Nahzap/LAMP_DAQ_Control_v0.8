@@ -1,0 +1,58 @@
+{
+  "name": "Laser_Alignment_Sequence",
+  "description": "Secuencia para alineación gradual de láser sin dañar detector",
+  "version": "1.0",
+  "created": "2026-03-09T15:35:00Z",
+  "author": "LAMP Team",
+  "totalDuration": "00:00:10.000",
+  "events": [
+    {
+      "eventId": "evt_001",
+      "name": "Initial Ramp Up",
+      "startTime": "00:00:00.000",
+      "duration": "00:00:02.000",
+      "channel": 0,
+      "deviceType": "Analog",
+      "eventType": "Ramp",
+      "parameters": {
+        "startVoltage": 0.0,
+        "endVoltage": 2.0
+      },
+      "description": "Ramp from 0V to 2V in 2 seconds",
+      "color": "#50C878"
+    },
+    {
+      "eventId": "evt_002",
+      "name": "Hold 2V",
+      "startTime": "00:00:02.000",
+      "duration": "00:00:05.000",
+      "channel": 0,
+      "deviceType": "Analog",
+      "eventType": "DC",
+      "parameters": {
+        "voltage": 2.0
+      },
+      "description": "Maintain 2V for 5 seconds",
+      "color": "#4A90E2"
+    },
+    {
+      "eventId": "evt_003",
+      "name": "Final Ramp Up",
+      "startTime": "00:00:07.000",
+      "duration": "00:00:03.000",
+      "channel": 0,
+      "deviceType": "Analog",
+      "eventType": "Ramp",
+      "parameters": {
+        "startVoltage": 2.0,
+        "endVoltage": 5.0
+      },
+      "description": "Ramp from 2V to 5V in 3 seconds",
+      "color": "#50C878"
+    }
+  ],
+  "metadata": {
+    "category": "Laser Control",
+    "tags": ["alignment", "ramp", "safe"]
+  }
+}

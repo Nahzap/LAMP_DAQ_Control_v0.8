@@ -83,21 +83,36 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
         public void InitializeDevice(int deviceNumber, string profileName = null)
         {
             EnsureNotDisposed();
-            _deviceNumber = deviceNumber;
+            
+            // Determinar el tipo de dispositivo basado en el nombre del perfil
+            bool isDigitalProfile = !string.IsNullOrEmpty(profileName) && 
+                                   (profileName.Contains("PCI1735") || profileName.Contains("1735"));
+            bool isAnalogProfile = !string.IsNullOrEmpty(profileName) && 
+                                  (profileName.Contains("PCIe1824") || profileName.Contains("1824"));
+            
+            DeviceType targetDeviceType = isDigitalProfile ? DeviceType.Digital : 
+                                         isAnalogProfile ? DeviceType.Analog : 
+                                         DeviceType.Unknown;
 
             try
             {
-                if (_deviceInitialized)
+                // Si el dispositivo ya está inicializado PERO es del mismo tipo, no reinicializar
+                if (_deviceInitialized && _deviceNumber == deviceNumber && _deviceType == targetDeviceType)
                 {
-                    _logger.Info("Device is already initialized");
+                    _logger.Info($"Device is already initialized (Type: {_deviceType}, Number: {_deviceNumber})");
                     return;
                 }
                 
-                _logger.Info($"Detectando tipo de dispositivo para ID {deviceNumber}, perfil: {profileName ?? "(ninguno)"}...");
+                // Si el tipo de dispositivo cambió, limpiar el dispositivo anterior
+                if (_deviceInitialized && _deviceType != targetDeviceType)
+                {
+                    _logger.Info($"Device type changing from {_deviceType} to {targetDeviceType}. Disposing old device...");
+                    DisposeDevices();
+                    _deviceInitialized = false;
+                }
                 
-                // Determinar el tipo de dispositivo basado en el nombre del perfil
-                bool isDigitalProfile = !string.IsNullOrEmpty(profileName) && 
-                                       (profileName.Contains("PCI1735") || profileName.Contains("1735"));
+                _deviceNumber = deviceNumber;
+                _logger.Info($"Detectando tipo de dispositivo para ID {deviceNumber}, perfil: {profileName ?? "(ninguno)"}...");
                 
                 if (isDigitalProfile)
                 {
@@ -797,62 +812,71 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
             GC.SuppressFinalize(this);
         }
 
+        private void DisposeDevices()
+        {
+            try
+            {
+                // Liberar recursos según el tipo de dispositivo
+                if (_deviceInitialized)
+                {
+                    switch (_deviceType)
+                    {
+                        case DeviceType.Analog:
+                            // Reset all analog outputs to 0V
+                            if (_analogDevice != null)
+                            {
+                                for (int i = 0; i < _analogDevice.ChannelCount; i++)
+                                {
+                                    try { _analogDevice.Write(i, 0.0); }
+                                    catch { /* Ignore errors during cleanup */ }
+                                }
+                            }
+                            break;
+                            
+                        case DeviceType.Digital:
+                            // Reset all digital outputs to 0
+                            if (_digitalOutputDevice != null)
+                            {
+                                try
+                                {
+                                    for (int port = 0; port < _digitalOutputDevice.PortCount; port++)
+                                    {
+                                        byte zero = 0;
+                                        _digitalOutputDevice.Write(port, zero);
+                                    }
+                                }
+                                catch (Exception ex)
+                                {
+                                    _logger.Error("Error resetting digital outputs", ex);
+                                }
+                            }
+                            break;
+                    }
+                }
+                
+                // Dispose all device controllers and recreate them
+                _analogDevice?.Dispose();
+                _digitalInputDevice?.Dispose();
+                _digitalOutputDevice?.Dispose();
+                
+                // Recreate fresh instances for the new device
+                _analogDevice = new InstantAoCtrl();
+                _digitalInputDevice = new InstantDiCtrl();
+                _digitalOutputDevice = new InstantDoCtrl();
+                
+                _logger.Info("Device resources released and recreated");
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Error releasing device resources", ex);
+            }
+        }
+        
         protected virtual void Dispose(bool disposing)
         {
             if (!_disposed && disposing)
             {
-                try
-                {
-                    // Liberar recursos según el tipo de dispositivo
-                    if (_deviceInitialized)
-                    {
-                        switch (_deviceType)
-                        {
-                            case DeviceType.Analog:
-                                // Reset all analog outputs to 0V
-                                if (_analogDevice != null)
-                                {
-                                    for (int i = 0; i < _analogDevice.ChannelCount; i++)
-                                    {
-                                        try { _analogDevice.Write(i, 0.0); }
-                                        catch { /* Ignore errors during cleanup */ }
-                                    }
-                                }
-                                break;
-                                
-                            case DeviceType.Digital:
-                                // Reset all digital outputs to 0
-                                if (_deviceType == DeviceType.Digital && _digitalOutputDevice != null)
-                                {
-                                    try
-                                    {
-                                        for (int port = 0; port < _digitalOutputDevice.PortCount; port++)
-                                        {
-                                            byte zero = 0;
-                                            _digitalOutputDevice.Write(port, zero);
-                                        }
-                                    }
-                                    catch (Exception ex)
-                                    {
-                                        _logger.Error("Error resetting digital outputs", ex);
-                                    }
-                                }
-                                break;
-                        }
-                    }
-                    
-                    // Dispose all device controllers
-                    _analogDevice?.Dispose();
-                    _digitalInputDevice?.Dispose();
-                    _digitalOutputDevice?.Dispose();
-                    
-                    _logger.Info("Device resources released");
-                }
-                catch (Exception ex)
-                {
-                    _logger.Error("Error releasing device resources", ex);
-                }
-                
+                DisposeDevices();
                 _disposed = true;
                 _deviceInitialized = false;
             }

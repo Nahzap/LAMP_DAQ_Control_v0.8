@@ -33,7 +33,7 @@
                               Padding="10">
                         <StackPanel>
                             <Label Content="Canal (0-31):"/>
-                            <TextBox Text="{Binding SelectedChannel, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding SelectedChannel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             
                             <Label Content="Voltaje (V):"/>
                             <Grid>
@@ -44,12 +44,12 @@
                                 <Slider Grid.Column="0" 
                                         Minimum="0" 
                                         Maximum="10" 
-                                        Value="{Binding Voltage}"
+                                        Value="{Binding Voltage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                         TickFrequency="0.5"
                                         IsSnapToTickEnabled="True"
                                         VerticalAlignment="Center"/>
                                 <TextBox Grid.Column="1" 
-                                        Text="{Binding Voltage, StringFormat=F2}" 
+                                        Text="{Binding Voltage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged, StringFormat=F2}" 
                                         Width="60"
                                         Margin="5,0,0,0"/>
                             </Grid>
@@ -69,10 +69,10 @@
                               Padding="10">
                         <StackPanel>
                             <Label Content="Voltaje Objetivo (V):"/>
-                            <TextBox Text="{Binding TargetVoltage, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding TargetVoltage, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             
                             <Label Content="Duración (ms):"/>
-                            <TextBox Text="{Binding RampDuration, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding RampDuration, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             
                             <Button Content="Generar Rampa" 
                                     Command="{Binding GenerateRampCommand}"
@@ -89,13 +89,13 @@
                               Padding="10">
                         <StackPanel>
                             <Label Content="Frecuencia (Hz):"/>
-                            <TextBox Text="{Binding Frequency, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding Frequency, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             
                             <Label Content="Amplitud (V):"/>
-                            <TextBox Text="{Binding Amplitude, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding Amplitude, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             
                             <Label Content="Offset (V):"/>
-                            <TextBox Text="{Binding Offset, UpdateSourceTrigger=PropertyChanged}"/>
+                            <TextBox Text="{Binding Offset, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"/>
                             
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions>

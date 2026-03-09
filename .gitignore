@@ -1,5 +1,6 @@
 # Archivos de compilación
 bin/
+!bin/Release/LATEST_LOG.txt
 obj/
 
 # Archivos de usuario de Visual Studio
