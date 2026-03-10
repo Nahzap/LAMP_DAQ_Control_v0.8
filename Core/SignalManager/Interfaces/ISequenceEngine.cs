@@ -24,6 +24,16 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Interfaces
         List<SignalSequence> GetAllSequences();
 
         /// <summary>
+        /// Gets a specific event by ID from a sequence
+        /// </summary>
+        SignalEvent GetEvent(string sequenceId, string eventId);
+
+        /// <summary>
+        /// Gets all events from a sequence, sorted by start time
+        /// </summary>
+        List<SignalEvent> GetAllEvents(string sequenceId);
+
+        /// <summary>
         /// Adds an event to a sequence
         /// </summary>
         void AddEvent(string sequenceId, SignalEvent evt);

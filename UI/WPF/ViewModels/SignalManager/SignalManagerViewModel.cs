@@ -27,9 +27,10 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         private SignalSequence _selectedSequence;
         private SignalEvent _selectedEvent;
         private TimelineEventViewModel _selectedTimelineEvent;
+        private double _currentTimeSeconds;
+        private SignalEvent _selectedEventFromList;
         private string _statusText;
         private string _executionStateText;
-        private double _currentTimeSeconds;
         private long _totalDurationNanoseconds;
         private double _zoomLevel;
 
@@ -48,6 +49,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             Sequences = new ObservableCollection<SignalSequence>();
             SignalCategories = new ObservableCollection<SignalCategoryViewModel>();
             TimelineChannels = new ObservableCollection<TimelineChannelViewModel>();
+            EventsList = new ObservableCollection<SignalEvent>();
 
             // Initialize timeline channels from ALL detected devices
             InitializeTimelineChannels();
@@ -118,6 +120,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         public ObservableCollection<SignalSequence> Sequences { get; }
         public ObservableCollection<SignalCategoryViewModel> SignalCategories { get; }
         public ObservableCollection<TimelineChannelViewModel> TimelineChannels { get; }
+        public ObservableCollection<SignalEvent> EventsList { get; private set; }
 
         public SignalSequence SelectedSequence
         {
@@ -152,6 +155,24 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 {
                     System.Console.WriteLine($"[EVENT] SelectedEvent changed: {value?.Name ?? "null"}");
                     ((RelayCommand)DeleteEventCommand)?.RaiseCanExecuteChanged();
+                    OnPropertyChanged(nameof(SelectedEventStartSeconds));
+                    OnPropertyChanged(nameof(SelectedEventDurationMs));
+                }
+            }
+        }
+
+        public SignalEvent SelectedEventFromList
+        {
+            get => _selectedEventFromList;
+            set
+            {
+                if (SetProperty(ref _selectedEventFromList, value))
+                {
+                    if (value != null && SelectedSequence != null)
+                    {
+                        var realEvent = _sequenceEngine.GetEvent(SelectedSequence.SequenceId, value.EventId);
+                        SelectedEvent = realEvent;
+                    }
                 }
             }
         }
@@ -163,8 +184,18 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             {
                 if (SetProperty(ref _selectedTimelineEvent, value))
                 {
-                    SelectedEvent = value?.SignalEvent;
-                    System.Console.WriteLine($"[EVENT] SelectedTimelineEvent changed: {value?.SignalEvent?.Name ?? "null"}");
+                    // CRITICAL FIX: Get real event from engine, not corrupted copy
+                    if (value?.SignalEvent != null && SelectedSequence != null)
+                    {
+                        var realEvent = _sequenceEngine.GetEvent(SelectedSequence.SequenceId, value.SignalEvent.EventId);
+                        SelectedEvent = realEvent;
+                        System.Console.WriteLine($"[EVENT] SelectedTimelineEvent changed: {realEvent?.Name ?? "null"}, StartTime={realEvent?.StartTime.TotalSeconds:F6}s (Real event from engine)");
+                    }
+                    else
+                    {
+                        SelectedEvent = null;
+                        System.Console.WriteLine($"[EVENT] SelectedTimelineEvent changed: null");
+                    }
                 }
             }
         }
@@ -240,22 +271,17 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             {
                 if (SetProperty(ref _zoomLevel, value))
                 {
-                    OnPropertyChanged(nameof(TimelineWidth));
                     OnPropertyChanged(nameof(ZoomLevelText));
+                    OnPropertyChanged(nameof(TimelineWidth));
                 }
             }
         }
 
-        public string ZoomLevelText
-        {
-            get
-            {
-                if (ZoomLevel >= 10) return $"{ZoomLevel:F0}";
-                return $"{ZoomLevel:F1}";
-            }
-        }
+        public string ZoomLevelText => $"{_zoomLevel:F1}";
+        public double TimelineWidth => 800 * _zoomLevel;
 
-        public double TimelineWidth => 800 * ZoomLevel;
+        // Playback speed locked at 1X (real-time: 1,000,000,000 ns/s)
+        public string PlaybackSpeedText => "1X";
 
         #endregion
 
@@ -571,7 +597,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         {
             if (SelectedEvent == null || SelectedSequence == null) return;
 
+            System.Console.WriteLine($"[APPLY CHANGES] Before update: StartTime={SelectedEvent.StartTime.TotalSeconds:F6}s, Duration={SelectedEvent.Duration.TotalSeconds:F6}s");
             _sequenceEngine.UpdateEvent(SelectedSequence.SequenceId, SelectedEvent);
+            System.Console.WriteLine($"[APPLY CHANGES] After update: StartTime={SelectedEvent.StartTime.TotalSeconds:F6}s");
             UpdateTimeline();
             StatusText = "Event updated";
         }
@@ -630,40 +658,45 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         {
             System.Console.WriteLine($"[UPDATE TIMELINE] Starting timeline update...");
             
-            // Clear all events from channels
-            foreach (var channel in TimelineChannels)
+            if (SelectedSequence == null)
             {
-                channel.Events.Clear();
-            }
-
-            if (SelectedSequence == null || SelectedSequence.Events == null)
-            {
-                System.Console.WriteLine($"[UPDATE TIMELINE] No sequence or no events to display");
+                System.Console.WriteLine($"[UPDATE TIMELINE] No sequence selected");
+                EventsList.Clear();
                 return;
             }
 
-            System.Console.WriteLine($"[UPDATE TIMELINE] Processing {SelectedSequence.Events.Count} events for sequence '{SelectedSequence.Name}'");
+            var events = SelectedSequence.Events;
+            System.Console.WriteLine($"[UPDATE TIMELINE] Processing {events.Count} events for sequence '{SelectedSequence.Name}'");
             System.Console.WriteLine($"[UPDATE TIMELINE] Using grid duration: {TotalDurationSeconds}s ({TotalDurationNanoseconds}ns)");
 
-            // Add events to their respective channels
-            foreach (var evt in SelectedSequence.Events)
+            // Update EventsList with all events from sequence
+            EventsList.Clear();
+            foreach (var evt in events.OrderBy(e => e.StartTime))
             {
-                var channel = TimelineChannels.FirstOrDefault(c => 
-                    c.ChannelNumber == evt.Channel &&
-                    c.DeviceType == evt.DeviceType &&
-                    c.DeviceModel == evt.DeviceModel);
-                
-                if (channel != null)
+                EventsList.Add(evt);
+            }
+
+            // Clear all events from timeline
+            foreach (var channel in TimelineChannels)
+            {
+                channel.ClearEvents();
+            }
+
+            // Add events to appropriate channels
+            foreach (var evt in events)
+            {
+                var targetChannel = TimelineChannels.FirstOrDefault(ch => 
+                    ch.ChannelNumber == evt.Channel && 
+                    ch.DeviceType == evt.DeviceType &&
+                    ch.DeviceModel == evt.DeviceModel); // CRITICAL: Match exact device
+
+                if (targetChannel != null)
                 {
-                    System.Console.WriteLine($"[UPDATE TIMELINE] Adding event '{evt.Name}' to channel {channel.ChannelName} (Type: {channel.DeviceType})");
-                    channel.AddEvent(evt, TotalDurationSeconds);
-                }
-                else
-                {
-                    System.Console.WriteLine($"[UPDATE TIMELINE ERROR] No matching channel found for event '{evt.Name}' (Channel: {evt.Channel}, Type: {evt.DeviceType}, Model: {evt.DeviceModel})");
+                    System.Console.WriteLine($"[UPDATE TIMELINE] Adding event '{evt.Name}' to channel {targetChannel.ChannelName} (Type: {targetChannel.DeviceType})");
+                    targetChannel.AddEvent(evt, TotalDurationSeconds);
                 }
             }
-            
+
             System.Console.WriteLine($"[UPDATE TIMELINE] Timeline update complete");
         }
 
@@ -728,6 +761,74 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         /// <summary>
         /// Adds a signal from library to a specific channel
         /// </summary>
+        public bool MoveEventToChannel(SignalEvent existingEvent, TimelineChannelViewModel targetChannel, TimeSpan newStartTime)
+        {
+            System.Console.WriteLine($"[MOVE EVENT] MoveEventToChannel called: Event={existingEvent.Name}, From CH{existingEvent.Channel} to {targetChannel.ChannelName}, NewStart={newStartTime.TotalSeconds:F3}s");
+            
+            if (SelectedSequence == null)
+            {
+                System.Console.WriteLine($"[MOVE EVENT ERROR] No sequence selected");
+                StatusText = "No sequence selected";
+                return false;
+            }
+
+            // Validate signal type matches channel type
+            if (existingEvent.DeviceType != targetChannel.DeviceType)
+            {
+                System.Console.WriteLine($"[MOVE EVENT ERROR] Type mismatch: Event={existingEvent.DeviceType}, Channel={targetChannel.DeviceType}");
+                StatusText = $"Cannot move {existingEvent.DeviceType} event to {targetChannel.DeviceType} channel";
+                MessageBox.Show(
+                    $"Cannot move {existingEvent.DeviceType} event '{existingEvent.Name}' to {targetChannel.DeviceType} channel '{targetChannel.ChannelName}'.\n\nEvent type must match channel type.",
+                    "Type Mismatch",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
+            // Get real event from engine
+            var realEvent = _sequenceEngine.GetEvent(SelectedSequence.SequenceId, existingEvent.EventId);
+            if (realEvent == null)
+            {
+                System.Console.WriteLine($"[MOVE EVENT ERROR] Event not found in sequence");
+                return false;
+            }
+
+            // Store old channel for removal
+            int oldChannel = realEvent.Channel;
+            string oldDeviceModel = realEvent.DeviceModel;
+
+            // Update event properties
+            realEvent.Channel = targetChannel.ChannelNumber;
+            realEvent.DeviceModel = targetChannel.DeviceModel;
+            realEvent.StartTime = newStartTime;
+
+            // Check for conflicts in target channel
+            if (targetChannel.HasConflict(realEvent))
+            {
+                System.Console.WriteLine($"[MOVE EVENT ERROR] Time conflict on target channel");
+                // Restore original values
+                realEvent.Channel = oldChannel;
+                realEvent.DeviceModel = oldDeviceModel;
+                StatusText = $"Cannot move: Time conflict on {targetChannel.ChannelName}";
+                MessageBox.Show(
+                    $"Cannot move event to {targetChannel.ChannelName} at {newStartTime.TotalSeconds:F1}s.\n\nThere is already an event in that time range.",
+                    "Time Conflict",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return false;
+            }
+
+            // Update event in engine
+            _sequenceEngine.UpdateEvent(SelectedSequence.SequenceId, realEvent);
+            
+            // Refresh timeline to show in new position
+            UpdateTimeline();
+            
+            System.Console.WriteLine($"[MOVE EVENT SUCCESS] Moved '{realEvent.Name}' from CH{oldChannel} to {targetChannel.ChannelName} @ {newStartTime.TotalSeconds:F3}s");
+            StatusText = $"Moved {realEvent.Name} to {targetChannel.ChannelName} at {newStartTime.TotalSeconds:F1}s";
+            return true;
+        }
+
         public bool AddSignalToChannel(SignalEvent templateEvent, TimelineChannelViewModel targetChannel, TimeSpan startTime)
         {
             System.Console.WriteLine($"[ADD SIGNAL] AddSignalToChannel called: Signal={templateEvent.Name}, Channel={targetChannel.ChannelName}, StartTime={startTime.TotalSeconds:F2}s");

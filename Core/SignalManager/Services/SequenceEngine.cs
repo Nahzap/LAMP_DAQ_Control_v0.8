@@ -62,6 +62,28 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
             }
         }
 
+        public SignalEvent GetEvent(string sequenceId, string eventId)
+        {
+            var sequence = GetSequence(sequenceId);
+            if (sequence == null) return null;
+
+            lock (_lock)
+            {
+                return sequence.Events.FirstOrDefault(e => e.EventId == eventId);
+            }
+        }
+
+        public List<SignalEvent> GetAllEvents(string sequenceId)
+        {
+            var sequence = GetSequence(sequenceId);
+            if (sequence == null) return new List<SignalEvent>();
+
+            lock (_lock)
+            {
+                return sequence.Events.OrderBy(e => e.StartTime).ToList();
+            }
+        }
+
         public void AddEvent(string sequenceId, SignalEvent evt)
         {
             if (evt == null)
@@ -70,6 +92,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
             var sequence = GetSequence(sequenceId);
             if (sequence == null)
                 throw new InvalidOperationException($"Sequence {sequenceId} not found.");
+
+            System.Console.WriteLine($"[SEQ ENGINE] AddEvent '{evt.Name}': StartTime={evt.StartTime.TotalSeconds:F6}s, Duration={evt.Duration.TotalSeconds:F6}s");
 
             lock (_lock)
             {
@@ -103,6 +127,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
                 var existing = sequence.Events.FirstOrDefault(e => e.EventId == evt.EventId);
                 if (existing == null)
                     return false;
+
+                System.Console.WriteLine($"[SEQ ENGINE] UpdateEvent '{evt.Name}': OLD StartTime={existing.StartTime.TotalSeconds:F6}s, NEW StartTime={evt.StartTime.TotalSeconds:F6}s");
 
                 // Update properties
                 existing.Name = evt.Name;

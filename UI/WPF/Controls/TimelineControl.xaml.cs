@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
 using System.Windows.Media;
 using LAMP_DAQ_Control_v0_8.Core.SignalManager.Models;
 using LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager;
@@ -183,13 +184,17 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
                 return;
             }
 
-            var templateEvent = e.Data.GetData(typeof(SignalEvent)) as SignalEvent;
-            if (templateEvent == null)
+            var signalEvent = e.Data.GetData(typeof(SignalEvent)) as SignalEvent;
+            if (signalEvent == null)
             {
                 System.Console.WriteLine($"[DROP ERROR] Failed to cast data to SignalEvent");
                 return;
             }
-            System.Console.WriteLine($"[DROP] Signal: {templateEvent.Name}, Type: {templateEvent.EventType}");
+
+            bool isExistingEvent = e.Data.GetDataPresent("IsExistingEvent") && 
+                                   (bool)e.Data.GetData("IsExistingEvent");
+
+            System.Console.WriteLine($"[DROP] Signal: {signalEvent.Name}, Type: {signalEvent.EventType}, IsExisting: {isExistingEvent}");
 
             var border = sender as Border;
             if (border == null)
@@ -206,71 +211,87 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
             }
             System.Console.WriteLine($"[DROP] Target channel: {channel.ChannelName} (Device: {channel.DeviceModel}, CH: {channel.ChannelNumber})");
 
-            // Calculate drop time based on mouse position
-            var position = e.GetPosition(border);
-            var percentage = position.X / border.ActualWidth;
-            System.Console.WriteLine($"[DROP] Drop position: X={position.X}, Width={border.ActualWidth}, Percentage={percentage:F2}");
-            
+            // Calculate drop position
+            Point dropPosition = e.GetPosition(border);
+            double dropPercentage = dropPosition.X / border.ActualWidth;
+            System.Console.WriteLine($"[DROP] Drop position: X={dropPosition.X:F1}, Width={border.ActualWidth:F0}, Percentage={dropPercentage:F2}");
+
             var viewModel = DataContext as SignalManagerViewModel;
             if (viewModel == null)
             {
-                System.Console.WriteLine($"[DROP ERROR] DataContext is not SignalManagerViewModel");
+                System.Console.WriteLine($"[DROP ERROR] ViewModel not found");
                 return;
             }
-            
-            if (viewModel.SelectedSequence == null)
+
+            // Calculate start time based on drop position
+            double totalDurationSeconds = viewModel.TotalDurationSeconds;
+            TimeSpan startTime = TimeSpan.FromSeconds(dropPercentage * totalDurationSeconds);
+            System.Console.WriteLine($"[DROP] Calculated start time: {startTime.TotalSeconds:F2}s (Total duration: {totalDurationSeconds}s)");
+
+            if (isExistingEvent)
             {
-                System.Console.WriteLine($"[DROP ERROR] No sequence selected");
-                return;
+                // MOVE existing event to new channel
+                System.Console.WriteLine($"[DROP] Moving existing event to new channel");
+                var result = viewModel.MoveEventToChannel(signalEvent, channel, startTime);
+                System.Console.WriteLine($"[DROP] MoveEventToChannel result: {result}");
             }
-
-            var totalSeconds = viewModel.TotalDurationSeconds;
-            if (totalSeconds <= 0) totalSeconds = 10;
-
-            var dropTimeSeconds = percentage * totalSeconds;
-            var startTime = TimeSpan.FromSeconds(Math.Max(0, dropTimeSeconds));
-            System.Console.WriteLine($"[DROP] Calculated start time: {startTime.TotalSeconds:F2}s (Total duration: {totalSeconds}s)");
-
-            // Add signal to channel
-            System.Console.WriteLine($"[DROP] Calling AddSignalToChannel...");
-            var success = viewModel.AddSignalToChannel(templateEvent, channel, startTime);
-            System.Console.WriteLine($"[DROP] AddSignalToChannel result: {success}");
+            else
+            {
+                // ADD new event from library
+                System.Console.WriteLine($"[DROP] Calling AddSignalToChannel...");
+                var result = viewModel.AddSignalToChannel(signalEvent, channel, startTime);
+                System.Console.WriteLine($"[DROP] AddSignalToChannel result: {result}");
+            }
 
             e.Handled = true;
         }
 
-        private void OnEventClick(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        private Point _eventDragStartPoint;
+        private TimelineEventViewModel _draggedEvent;
+
+        private void OnEventClick(object sender, MouseButtonEventArgs e)
         {
             System.Console.WriteLine($"[EVENT CLICK] OnEventClick called");
             
-            var border = sender as Border;
-            if (border == null)
+            if (sender is Border border && border.Tag is TimelineEventViewModel eventVM)
             {
-                System.Console.WriteLine($"[EVENT CLICK ERROR] Sender is not a Border");
-                return;
+                System.Console.WriteLine($"[EVENT CLICK] Event: {eventVM.SignalEvent.Name}, Type: {eventVM.SignalEvent.EventType}, Device: {eventVM.SignalEvent.DeviceType}");
+                System.Console.WriteLine($"[EVENT CLICK] Setting SelectedTimelineEvent in ViewModel");
+                
+                var viewModel = DataContext as SignalManagerViewModel;
+                if (viewModel != null)
+                {
+                    viewModel.SelectedTimelineEvent = eventVM;
+                    System.Console.WriteLine($"[EVENT CLICK] SelectedTimelineEvent updated successfully");
+                }
+                
+                // Store start point for potential drag
+                _eventDragStartPoint = e.GetPosition(null);
+                _draggedEvent = eventVM;
             }
+        }
 
-            var eventViewModel = border.Tag as TimelineEventViewModel;
-            if (eventViewModel == null)
+        private void OnEventMouseMove(object sender, MouseEventArgs e)
+        {
+            if (e.LeftButton == MouseButtonState.Pressed && _draggedEvent != null)
             {
-                System.Console.WriteLine($"[EVENT CLICK ERROR] Border.Tag is not TimelineEventViewModel. Type: {border.Tag?.GetType().Name ?? "null"}");
-                return;
-            }
+                Point currentPosition = e.GetPosition(null);
+                Vector diff = _eventDragStartPoint - currentPosition;
 
-            var viewModel = DataContext as SignalManagerViewModel;
-            if (viewModel == null)
-            {
-                System.Console.WriteLine($"[EVENT CLICK ERROR] DataContext is not SignalManagerViewModel");
-                return;
+                // Only start drag if mouse moved enough (avoid accidental drags on click)
+                if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                    Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+                {
+                    System.Console.WriteLine($"[EVENT DRAG] Starting drag for: {_draggedEvent.SignalEvent.Name}");
+                    
+                    // Create data object with existing event
+                    var dataObject = new DataObject(typeof(SignalEvent), _draggedEvent.SignalEvent);
+                    dataObject.SetData("IsExistingEvent", true);
+                    
+                    DragDrop.DoDragDrop((DependencyObject)sender, dataObject, DragDropEffects.Move);
+                    _draggedEvent = null;
+                }
             }
-
-            System.Console.WriteLine($"[EVENT CLICK] Event: {eventViewModel.SignalEvent.Name}, Type: {eventViewModel.SignalEvent.EventType}, Device: {eventViewModel.SignalEvent.DeviceType}");
-            System.Console.WriteLine($"[EVENT CLICK] Setting SelectedTimelineEvent in ViewModel");
-            
-            viewModel.SelectedTimelineEvent = eventViewModel;
-            
-            System.Console.WriteLine($"[EVENT CLICK] SelectedTimelineEvent updated successfully");
-            e.Handled = true;
         }
     }
 }

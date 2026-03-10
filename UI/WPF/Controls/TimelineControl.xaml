@@ -126,6 +126,7 @@
                                                         Background="{Binding Color}"
                                                         ToolTip="{Binding DisplayText}"
                                                         MouseLeftButtonDown="OnEventClick"
+                                                        MouseMove="OnEventMouseMove"
                                                         Tag="{Binding}"
                                                         Cursor="Hand">
                                                     <Border.Width>
