@@ -228,7 +228,17 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 if (SetProperty(ref _zoomLevel, value))
                 {
                     OnPropertyChanged(nameof(TimelineWidth));
+                    OnPropertyChanged(nameof(ZoomLevelText));
                 }
+            }
+        }
+
+        public string ZoomLevelText
+        {
+            get
+            {
+                if (ZoomLevel >= 10) return $"{ZoomLevel:F0}";
+                return $"{ZoomLevel:F1}";
             }
         }
 
@@ -555,19 +565,23 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
         private void OnZoomIn()
         {
-            if (ZoomLevel < 10.0)
+            // Zoom gradual: +20% por click
+            if (ZoomLevel < 100)
             {
-                ZoomLevel = Math.Min(10.0, ZoomLevel * 1.2);
-                StatusText = $"Zoom: {ZoomLevel:F1}x";
+                ZoomLevel = Math.Min(100, ZoomLevel * 1.2);
+                StatusText = $"Zoom: {ZoomLevelText}X";
+                System.Console.WriteLine($"[ZOOM BTN+] Level: {ZoomLevel:F2}X");
             }
         }
 
         private void OnZoomOut()
         {
+            // Zoom gradual: -20% por click
             if (ZoomLevel > 0.1)
             {
                 ZoomLevel = Math.Max(0.1, ZoomLevel / 1.2);
-                StatusText = $"Zoom: {ZoomLevel:F1}x";
+                StatusText = $"Zoom: {ZoomLevelText}X";
+                System.Console.WriteLine($"[ZOOM BTN-] Level: {ZoomLevel:F2}X");
             }
         }
 

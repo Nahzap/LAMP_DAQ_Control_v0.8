@@ -16,7 +16,6 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
         {
             InitializeComponent();
             this.Loaded += TimelineControl_Loaded;
-            this.MouseWheel += TimelineControl_MouseWheel;
             this.DataContextChanged += TimelineControl_DataContextChanged;
         }
 
@@ -42,26 +41,25 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
             }
         }
 
-        private void TimelineControl_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        private void TimelineControl_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
         {
             // Zoom horizontal solo con Ctrl + Mouse Wheel
-            // Sin Ctrl = scroll vertical normal
+            // Sin Ctrl = permitir scroll normal
             if (!System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Control))
                 return;
 
             var viewModel = DataContext as SignalManagerViewModel;
             if (viewModel == null) return;
 
-            if (e.Delta > 0)
-            {
-                if (viewModel.ZoomInCommand.CanExecute(null))
-                    viewModel.ZoomInCommand.Execute(null);
-            }
-            else
-            {
-                if (viewModel.ZoomOutCommand.CanExecute(null))
-                    viewModel.ZoomOutCommand.Execute(null);
-            }
+            // Zoom gradual: ±10% por cada paso
+            double factor = e.Delta > 0 ? 1.1 : 0.9091; // 1/1.1 = 0.9091
+            double newZoom = viewModel.ZoomLevel * factor;
+            
+            // Limitar entre 0.1 y 100
+            newZoom = Math.Max(0.1, Math.Min(100, newZoom));
+            viewModel.ZoomLevel = newZoom;
+            
+            System.Console.WriteLine($"[ZOOM] Level: {newZoom:F2}X, Width: {viewModel.TimelineWidth:F0}px");
             
             e.Handled = true;
         }
@@ -83,46 +81,71 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
                 var width = viewModel.TimelineWidth;
                 if (width <= 0) width = 800;
 
-                // Adjust marker interval based on zoom level
-                double interval = 1.0;
-                if (viewModel.ZoomLevel > 5.0)
-                    interval = 0.1;
-                else if (viewModel.ZoomLevel > 2.0)
-                    interval = 0.5;
-                else if (viewModel.ZoomLevel < 0.5)
-                    interval = 5.0;
-                else if (viewModel.ZoomLevel < 0.2)
-                    interval = 10.0;
+                // Calcular intervalo basado en segundos por pixel
+                double secondsPerPixel = totalSeconds / width;
+                double interval = CalculateInterval(secondsPerPixel);
+                double subInterval = interval / 5; // Subdivisiones menores
 
-                // Draw time markers
-                for (double t = 0; t <= totalSeconds; t += interval)
+                // Dibujar marcadores principales y subdivisiones
+                for (double t = 0; t <= totalSeconds; t += subInterval)
                 {
                     var x = (t / totalSeconds) * width;
+                    bool isMajor = Math.Abs(t % interval) < 0.0001;
                     
-                    // Draw tick line
+                    // Línea de marcador
                     var line = new System.Windows.Shapes.Line
                     {
                         X1 = x,
-                        Y1 = 20,
+                        Y1 = isMajor ? 15 : 22,
                         X2 = x,
                         Y2 = 30,
-                        Stroke = Brushes.Gray,
-                        StrokeThickness = 1
+                        Stroke = isMajor ? Brushes.Black : Brushes.LightGray,
+                        StrokeThickness = isMajor ? 1.5 : 0.5
                     };
                     TimeRulerCanvas.Children.Add(line);
 
-                    // Draw time label
-                    var text = new TextBlock
+                    // Etiqueta solo en marcadores principales
+                    if (isMajor)
                     {
-                        Text = interval >= 1.0 ? $"{t:F0}s" : $"{t:F1}s",
-                        FontSize = 9,
-                        Foreground = Brushes.Black
-                    };
-                    Canvas.SetLeft(text, x - 10);
-                    Canvas.SetTop(text, 2);
-                    TimeRulerCanvas.Children.Add(text);
+                        var text = new TextBlock
+                        {
+                            Text = FormatTimeLabel(t),
+                            FontSize = 9,
+                            Foreground = Brushes.Black
+                        };
+                        Canvas.SetLeft(text, x - 15);
+                        Canvas.SetTop(text, 0);
+                        TimeRulerCanvas.Children.Add(text);
+                    }
                 }
             }
+        }
+
+        private double CalculateInterval(double secondsPerPixel)
+        {
+            // Objetivo: ~100 pixels entre marcadores principales
+            double targetSeconds = secondsPerPixel * 100;
+            
+            // Encontrar intervalo apropiado
+            double[] intervals = { 1e-9, 2e-9, 5e-9, 10e-9, 20e-9, 50e-9, 100e-9, 200e-9, 500e-9,
+                                   1e-6, 2e-6, 5e-6, 10e-6, 20e-6, 50e-6, 100e-6, 200e-6, 500e-6,
+                                   1e-3, 2e-3, 5e-3, 10e-3, 20e-3, 50e-3, 100e-3, 200e-3, 500e-3,
+                                   1, 2, 5, 10, 20, 50, 100, 200, 500 };
+            
+            foreach (var interval in intervals)
+            {
+                if (interval >= targetSeconds)
+                    return interval;
+            }
+            return 1000;
+        }
+
+        private string FormatTimeLabel(double seconds)
+        {
+            if (seconds >= 1) return $"{seconds:F0}s";
+            if (seconds >= 0.001) return $"{seconds * 1000:F0}ms";
+            if (seconds >= 0.000001) return $"{seconds * 1e6:F0}µs";
+            return $"{seconds * 1e9:F0}ns";
         }
 
         private void OnChannelDragOver(object sender, DragEventArgs e)
