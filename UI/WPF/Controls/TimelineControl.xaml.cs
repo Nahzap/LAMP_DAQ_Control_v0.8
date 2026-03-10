@@ -16,6 +16,54 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
         {
             InitializeComponent();
             this.Loaded += TimelineControl_Loaded;
+            this.MouseWheel += TimelineControl_MouseWheel;
+            this.DataContextChanged += TimelineControl_DataContextChanged;
+        }
+
+        private void TimelineControl_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
+        {
+            if (e.OldValue is SignalManagerViewModel oldViewModel)
+            {
+                oldViewModel.PropertyChanged -= ViewModel_PropertyChanged;
+            }
+
+            if (e.NewValue is SignalManagerViewModel newViewModel)
+            {
+                newViewModel.PropertyChanged += ViewModel_PropertyChanged;
+            }
+        }
+
+        private void ViewModel_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(SignalManagerViewModel.ZoomLevel) ||
+                e.PropertyName == nameof(SignalManagerViewModel.TimelineWidth))
+            {
+                DrawTimeRuler();
+            }
+        }
+
+        private void TimelineControl_MouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+        {
+            // Zoom horizontal solo con Ctrl + Mouse Wheel
+            // Sin Ctrl = scroll vertical normal
+            if (!System.Windows.Input.Keyboard.Modifiers.HasFlag(System.Windows.Input.ModifierKeys.Control))
+                return;
+
+            var viewModel = DataContext as SignalManagerViewModel;
+            if (viewModel == null) return;
+
+            if (e.Delta > 0)
+            {
+                if (viewModel.ZoomInCommand.CanExecute(null))
+                    viewModel.ZoomInCommand.Execute(null);
+            }
+            else
+            {
+                if (viewModel.ZoomOutCommand.CanExecute(null))
+                    viewModel.ZoomOutCommand.Execute(null);
+            }
+            
+            e.Handled = true;
         }
 
         private void TimelineControl_Loaded(object sender, RoutedEventArgs e)
@@ -32,13 +80,24 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
                 var totalSeconds = viewModel.TotalDurationSeconds;
                 if (totalSeconds <= 0) totalSeconds = 10;
 
-                var width = TimeRulerCanvas.ActualWidth;
+                var width = viewModel.TimelineWidth;
                 if (width <= 0) width = 800;
 
-                // Draw time markers every second
-                for (int i = 0; i <= totalSeconds; i++)
+                // Adjust marker interval based on zoom level
+                double interval = 1.0;
+                if (viewModel.ZoomLevel > 5.0)
+                    interval = 0.1;
+                else if (viewModel.ZoomLevel > 2.0)
+                    interval = 0.5;
+                else if (viewModel.ZoomLevel < 0.5)
+                    interval = 5.0;
+                else if (viewModel.ZoomLevel < 0.2)
+                    interval = 10.0;
+
+                // Draw time markers
+                for (double t = 0; t <= totalSeconds; t += interval)
                 {
-                    var x = (i / totalSeconds) * width;
+                    var x = (t / totalSeconds) * width;
                     
                     // Draw tick line
                     var line = new System.Windows.Shapes.Line
@@ -55,7 +114,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
                     // Draw time label
                     var text = new TextBlock
                     {
-                        Text = $"{i}s",
+                        Text = interval >= 1.0 ? $"{t:F0}s" : $"{t:F1}s",
                         FontSize = 9,
                         Foreground = Brushes.Black
                     };

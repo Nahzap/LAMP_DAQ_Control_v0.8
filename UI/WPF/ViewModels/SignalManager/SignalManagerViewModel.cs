@@ -31,6 +31,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         private string _executionStateText;
         private double _currentTimeSeconds;
         private double _totalDurationSeconds;
+        private double _zoomLevel;
 
         public SignalManagerViewModel(DAQController daqController, IEnumerable<UI.Models.DAQDevice> allDetectedDevices)
         {
@@ -64,6 +65,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
             StatusText = "Ready";
             ExecutionStateText = "Idle";
+            ZoomLevel = 1.0;
         }
 
         /// <summary>
@@ -218,6 +220,20 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
         public string CurrentTimeText => TimeSpan.FromSeconds(CurrentTimeSeconds).ToString(@"mm\:ss\.fff");
 
+        public double ZoomLevel
+        {
+            get => _zoomLevel;
+            set
+            {
+                if (SetProperty(ref _zoomLevel, value))
+                {
+                    OnPropertyChanged(nameof(TimelineWidth));
+                }
+            }
+        }
+
+        public double TimelineWidth => 800 * ZoomLevel;
+
         #endregion
 
         #region Commands
@@ -236,6 +252,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         public ICommand PauseCommand { get; private set; }
         public ICommand StopCommand { get; private set; }
         public ICommand ApplyEventChangesCommand { get; private set; }
+        public ICommand ZoomInCommand { get; private set; }
+        public ICommand ZoomOutCommand { get; private set; }
 
         private void InitializeCommands()
         {
@@ -253,6 +271,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             PauseCommand = new RelayCommand(OnPause);
             StopCommand = new RelayCommand(OnStop);
             ApplyEventChangesCommand = new RelayCommand(OnApplyEventChanges, () => SelectedEvent != null);
+            ZoomInCommand = new RelayCommand(OnZoomIn);
+            ZoomOutCommand = new RelayCommand(OnZoomOut);
         }
 
         #endregion
@@ -531,6 +551,24 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             _sequenceEngine.UpdateEvent(SelectedSequence.SequenceId, SelectedEvent);
             UpdateTimeline();
             StatusText = "Event updated";
+        }
+
+        private void OnZoomIn()
+        {
+            if (ZoomLevel < 10.0)
+            {
+                ZoomLevel = Math.Min(10.0, ZoomLevel * 1.2);
+                StatusText = $"Zoom: {ZoomLevel:F1}x";
+            }
+        }
+
+        private void OnZoomOut()
+        {
+            if (ZoomLevel > 0.1)
+            {
+                ZoomLevel = Math.Max(0.1, ZoomLevel / 1.2);
+                StatusText = $"Zoom: {ZoomLevel:F1}x";
+            }
         }
 
         #endregion

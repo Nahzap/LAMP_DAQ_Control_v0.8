@@ -46,9 +46,11 @@
 
         <!-- Time Ruler Header -->
         <Border Grid.Row="0" Background="#E8E8E8" BorderBrush="#CCC" BorderThickness="0,0,0,1">
-            <Canvas x:Name="TimeRulerCanvas">
-                <!-- Time markers will be drawn here programmatically -->
-            </Canvas>
+            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                <Canvas x:Name="TimeRulerCanvas" Width="{Binding TimelineWidth}">
+                    <!-- Time markers will be drawn here programmatically -->
+                </Canvas>
+            </ScrollViewer>
         </Border>
 
         <!-- Scrollable Channel Grid -->
@@ -81,7 +83,7 @@
                 </Border>
 
                 <!-- Timeline Events Area -->
-                <ItemsControl Grid.Column="1" x:Name="TimelineEventsControl" ItemsSource="{Binding TimelineChannels}">
+                <ItemsControl Grid.Column="1" x:Name="TimelineEventsControl" ItemsSource="{Binding TimelineChannels}" Width="{Binding TimelineWidth}">
                     <ItemsControl.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel/>

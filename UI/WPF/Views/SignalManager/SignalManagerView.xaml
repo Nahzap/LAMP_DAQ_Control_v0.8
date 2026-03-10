@@ -148,8 +148,12 @@
                         <Slider Value="{Binding CurrentTimeSeconds}" 
                                 Maximum="{Binding TotalDurationSeconds}" 
                                 Width="200" 
-                                Margin="10,0,0,0"
+                                Margin="10,0,20,0"
                                 VerticalAlignment="Center"/>
+                        <TextBlock Text="Zoom:" VerticalAlignment="Center" Margin="0,0,5,0" FontWeight="Bold"/>
+                        <Button Content="−" Command="{Binding ZoomOutCommand}" Width="30" Margin="0,0,3,0" FontSize="16" FontWeight="Bold"/>
+                        <TextBlock Text="{Binding ZoomLevel, StringFormat={}{0:F1}x}" VerticalAlignment="Center" MinWidth="40" TextAlignment="Center"/>
+                        <Button Content="+" Command="{Binding ZoomInCommand}" Width="30" Margin="3,0,0,0" FontSize="16" FontWeight="Bold"/>
                     </StackPanel>
 
                     <!-- Timeline View with Custom Control -->
