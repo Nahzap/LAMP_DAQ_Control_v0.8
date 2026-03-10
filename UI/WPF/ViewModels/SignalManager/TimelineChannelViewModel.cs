@@ -181,11 +181,14 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             // Calculate percentage positions (0-100)
             LeftPosition = (_signalEvent.StartTime.TotalSeconds / totalDurationSeconds) * 100.0;
             Width = (_signalEvent.Duration.TotalSeconds / totalDurationSeconds) * 100.0;
+            
+            System.Console.WriteLine($"[CALC POS] Event '{_signalEvent.Name}': StartTime={_signalEvent.StartTime.TotalSeconds:F6}s, Duration={_signalEvent.Duration.TotalSeconds:F6}s, TotalGrid={totalDurationSeconds}s → Left={LeftPosition:F4}%, Width={Width:F4}%");
         }
 
         private void UpdateDisplayText()
         {
-            DisplayText = $"{_signalEvent.Name} ({_signalEvent.EventType})";
+            // Mostrar nombre y tiempo de inicio
+            DisplayText = $"{_signalEvent.Name} @ {_signalEvent.StartTime.TotalSeconds:F3}s";
         }
 
         public void RecalculatePosition(double totalDurationSeconds)

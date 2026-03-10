@@ -73,79 +73,90 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
         {
             TimeRulerCanvas.Children.Clear();
 
-            if (DataContext is SignalManagerViewModel viewModel && viewModel.SelectedSequence != null)
+            if (!(DataContext is SignalManagerViewModel viewModel))
+                return;
+
+            // PRECISIÓN INTERNA: nanosegundos
+            long totalNanoseconds = viewModel.TotalDurationNanoseconds;
+            if (totalNanoseconds <= 0) totalNanoseconds = 10_000_000_000; // 10s default
+
+            var width = viewModel.TimelineWidth;
+            if (width <= 0) width = 800;
+
+            // Calcular qué representa cada pixel en nanosegundos
+            double nanosecondsPerPixel = totalNanoseconds / width;
+            
+            // Determinar intervalo visual basado en zoom
+            long intervalNs = CalculateIntervalNanoseconds(nanosecondsPerPixel);
+            long subIntervalNs = intervalNs / 5; // 5 subdivisiones
+
+            System.Console.WriteLine($"[GRID] Total: {totalNanoseconds}ns, Width: {width}px, ns/px: {nanosecondsPerPixel:F2}, Interval: {intervalNs}ns");
+
+            // Dibujar marcadores desde 0 hasta totalNanoseconds
+            for (long t = 0; t <= totalNanoseconds; t += subIntervalNs)
             {
-                var totalSeconds = viewModel.TotalDurationSeconds;
-                if (totalSeconds <= 0) totalSeconds = 10;
-
-                var width = viewModel.TimelineWidth;
-                if (width <= 0) width = 800;
-
-                // Calcular intervalo basado en segundos por pixel
-                double secondsPerPixel = totalSeconds / width;
-                double interval = CalculateInterval(secondsPerPixel);
-                double subInterval = interval / 5; // Subdivisiones menores
-
-                // Dibujar marcadores principales y subdivisiones
-                for (double t = 0; t <= totalSeconds; t += subInterval)
+                var x = ((double)t / totalNanoseconds) * width;
+                bool isMajor = (t % intervalNs) == 0;
+                
+                // Línea de marcador
+                var line = new System.Windows.Shapes.Line
                 {
-                    var x = (t / totalSeconds) * width;
-                    bool isMajor = Math.Abs(t % interval) < 0.0001;
-                    
-                    // Línea de marcador
-                    var line = new System.Windows.Shapes.Line
-                    {
-                        X1 = x,
-                        Y1 = isMajor ? 15 : 22,
-                        X2 = x,
-                        Y2 = 30,
-                        Stroke = isMajor ? Brushes.Black : Brushes.LightGray,
-                        StrokeThickness = isMajor ? 1.5 : 0.5
-                    };
-                    TimeRulerCanvas.Children.Add(line);
+                    X1 = x,
+                    Y1 = isMajor ? 15 : 22,
+                    X2 = x,
+                    Y2 = 30,
+                    Stroke = isMajor ? Brushes.Black : Brushes.LightGray,
+                    StrokeThickness = isMajor ? 1.5 : 0.5
+                };
+                TimeRulerCanvas.Children.Add(line);
 
-                    // Etiqueta solo en marcadores principales
-                    if (isMajor)
+                // Etiqueta solo en marcadores principales
+                if (isMajor)
+                {
+                    var text = new TextBlock
                     {
-                        var text = new TextBlock
-                        {
-                            Text = FormatTimeLabel(t),
-                            FontSize = 9,
-                            Foreground = Brushes.Black
-                        };
-                        Canvas.SetLeft(text, x - 15);
-                        Canvas.SetTop(text, 0);
-                        TimeRulerCanvas.Children.Add(text);
-                    }
+                        Text = FormatTimeNanoseconds(t),
+                        FontSize = 9,
+                        Foreground = Brushes.Black
+                    };
+                    Canvas.SetLeft(text, x - 15);
+                    Canvas.SetTop(text, 0);
+                    TimeRulerCanvas.Children.Add(text);
                 }
             }
         }
 
-        private double CalculateInterval(double secondsPerPixel)
+        private long CalculateIntervalNanoseconds(double nanosecondsPerPixel)
         {
             // Objetivo: ~100 pixels entre marcadores principales
-            double targetSeconds = secondsPerPixel * 100;
+            double targetNanoseconds = nanosecondsPerPixel * 100;
             
-            // Encontrar intervalo apropiado
-            double[] intervals = { 1e-9, 2e-9, 5e-9, 10e-9, 20e-9, 50e-9, 100e-9, 200e-9, 500e-9,
-                                   1e-6, 2e-6, 5e-6, 10e-6, 20e-6, 50e-6, 100e-6, 200e-6, 500e-6,
-                                   1e-3, 2e-3, 5e-3, 10e-3, 20e-3, 50e-3, 100e-3, 200e-3, 500e-3,
-                                   1, 2, 5, 10, 20, 50, 100, 200, 500 };
+            // Intervalos en nanosegundos (1ns, 2ns, 5ns, 10ns, ...)
+            long[] intervals = { 
+                1, 2, 5, 10, 20, 50, 100, 200, 500,  // nanosegundos
+                1_000, 2_000, 5_000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000,  // microsegundos
+                1_000_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000, 50_000_000, 100_000_000, 200_000_000, 500_000_000,  // milisegundos
+                1_000_000_000, 2_000_000_000, 5_000_000_000, 10_000_000_000  // segundos
+            };
             
             foreach (var interval in intervals)
             {
-                if (interval >= targetSeconds)
+                if (interval >= targetNanoseconds)
                     return interval;
             }
-            return 1000;
+            return 10_000_000_000; // 10 segundos máximo
         }
 
-        private string FormatTimeLabel(double seconds)
+        private string FormatTimeNanoseconds(long nanoseconds)
         {
-            if (seconds >= 1) return $"{seconds:F0}s";
-            if (seconds >= 0.001) return $"{seconds * 1000:F0}ms";
-            if (seconds >= 0.000001) return $"{seconds * 1e6:F0}µs";
-            return $"{seconds * 1e9:F0}ns";
+            // Formato adaptativo según magnitud
+            if (nanoseconds >= 1_000_000_000) 
+                return $"{nanoseconds / 1_000_000_000.0:F1}s";
+            if (nanoseconds >= 1_000_000) 
+                return $"{nanoseconds / 1_000_000.0:F1}ms";
+            if (nanoseconds >= 1_000) 
+                return $"{nanoseconds / 1_000.0:F1}µs";
+            return $"{nanoseconds}ns";
         }
 
         private void OnChannelDragOver(object sender, DragEventArgs e)

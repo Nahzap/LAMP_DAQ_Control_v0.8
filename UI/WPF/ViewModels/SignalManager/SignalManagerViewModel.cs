@@ -30,7 +30,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         private string _statusText;
         private string _executionStateText;
         private double _currentTimeSeconds;
-        private double _totalDurationSeconds;
+        private long _totalDurationNanoseconds;
         private double _zoomLevel;
 
         public SignalManagerViewModel(DAQController daqController, IEnumerable<UI.Models.DAQDevice> allDetectedDevices)
@@ -66,6 +66,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             StatusText = "Ready";
             ExecutionStateText = "Idle";
             ZoomLevel = 1.0;
+            TotalDurationNanoseconds = 10_000_000_000; // 10 segundos por defecto
         }
 
         /// <summary>
@@ -212,10 +213,22 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             set => SetProperty(ref _currentTimeSeconds, value);
         }
 
+        public long TotalDurationNanoseconds
+        {
+            get => _totalDurationNanoseconds;
+            set
+            {
+                if (SetProperty(ref _totalDurationNanoseconds, value))
+                {
+                    OnPropertyChanged(nameof(TotalDurationSeconds));
+                }
+            }
+        }
+
         public double TotalDurationSeconds
         {
-            get => _totalDurationSeconds;
-            set => SetProperty(ref _totalDurationSeconds, value);
+            get => _totalDurationNanoseconds / 1e9;
+            set => TotalDurationNanoseconds = (long)(value * 1e9);
         }
 
         public string CurrentTimeText => TimeSpan.FromSeconds(CurrentTimeSeconds).ToString(@"mm\:ss\.fff");
@@ -620,25 +633,21 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             // Clear all events from channels
             foreach (var channel in TimelineChannels)
             {
-                channel.ClearEvents();
+                channel.Events.Clear();
             }
 
-            if (SelectedSequence == null)
+            if (SelectedSequence == null || SelectedSequence.Events == null)
             {
-                System.Console.WriteLine($"[UPDATE TIMELINE] No sequence selected, skipping");
+                System.Console.WriteLine($"[UPDATE TIMELINE] No sequence or no events to display");
                 return;
             }
 
-            // Add events to their respective channels
-            var totalDuration = SelectedSequence.TotalDuration.TotalSeconds;
-            if (totalDuration <= 0) totalDuration = 10; // Default
-
             System.Console.WriteLine($"[UPDATE TIMELINE] Processing {SelectedSequence.Events.Count} events for sequence '{SelectedSequence.Name}'");
-            
+            System.Console.WriteLine($"[UPDATE TIMELINE] Using grid duration: {TotalDurationSeconds}s ({TotalDurationNanoseconds}ns)");
+
+            // Add events to their respective channels
             foreach (var evt in SelectedSequence.Events)
             {
-                // CRITICAL: Must match by ChannelNumber + DeviceType + DeviceModel
-                // Otherwise events get added to BOTH digital and analog channels with same number!
                 var channel = TimelineChannels.FirstOrDefault(c => 
                     c.ChannelNumber == evt.Channel &&
                     c.DeviceType == evt.DeviceType &&
@@ -647,7 +656,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 if (channel != null)
                 {
                     System.Console.WriteLine($"[UPDATE TIMELINE] Adding event '{evt.Name}' to channel {channel.ChannelName} (Type: {channel.DeviceType})");
-                    channel.AddEvent(evt, totalDuration);
+                    channel.AddEvent(evt, TotalDurationSeconds);
                 }
                 else
                 {
@@ -783,8 +792,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             // Add to sequence and timeline
             System.Console.WriteLine($"[ADD SIGNAL] Adding to sequence engine...");
             _sequenceEngine.AddEvent(SelectedSequence.SequenceId, newEvent);
-            System.Console.WriteLine($"[ADD SIGNAL] Adding to timeline channel...");
-            targetChannel.AddEvent(newEvent, SelectedSequence.TotalDuration.TotalSeconds);
+            System.Console.WriteLine($"[ADD SIGNAL] Adding to timeline channel (Grid: {TotalDurationSeconds}s)...");
+            targetChannel.AddEvent(newEvent, TotalDurationSeconds);
             
             System.Console.WriteLine($"[ADD SIGNAL SUCCESS] Event added: {newEvent.Name} -> {targetChannel.ChannelName} @ {startTime.TotalSeconds:F2}s");
             StatusText = $"Added {newEvent.Name} to {targetChannel.ChannelName} at {startTime.TotalSeconds:F1}s";
