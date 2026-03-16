@@ -1,6 +1,6 @@
 # LAMP DAQ Control v0.8
 
-Controlador para tarjetas de adquisición de datos (DAQ) PCIe-1824 y PCI-1735U con interfaz visual WPF y monitoreo en tiempo real.
+Controlador para tarjetas de adquisición de datos (DAQ) PCIe-1824 y PCI-1735U con interfaz visual WPF, **Signal Manager avanzado** y monitoreo en tiempo real.
 
 ## 🎯 Descripción
 
@@ -17,6 +17,14 @@ Este software permite controlar las tarjetas de adquisición de datos Advantech 
   - Operaciones de lectura/escritura digital
   - Configuración de contadores programables
   - Control de temporización y conteo de eventos
+
+- **🆕 Signal Manager (v0.8)**:
+  - **Arquitectura Data-Oriented Design (DOD)** - Cache-friendly, SIMD-ready
+  - Editor visual de secuencias con timeline interactivo
+  - Ejecución paralela de eventos simultáneos (Task.WhenAll)
+  - Timing de alta precisión (±100μs) con Stopwatch + SpinWait
+  - Drag & drop entre canales con validación de tipos
+  - Soporte multi-dispositivo (PCIe-1824 + PCI-1735U simultáneos)
 
 ## Características
 
@@ -38,6 +46,40 @@ Este software permite controlar las tarjetas de adquisición de datos Advantech 
 - **Interfaz de consola** intuitiva y fácil de usar
 - **Reinicio seguro** de todos los canales a 0V
 - **Manejo de errores** robusto con mensajes descriptivos
+
+### 🆕 Signal Manager - Editor de Secuencias (v0.8)
+
+#### Arquitectura Data-Oriented Design (DOD)
+- **Column-oriented storage**: Arrays contiguos para máxima eficiencia de cache
+- **Separation of concerns**: Datos (`SignalTable`) separados de lógica (`SignalOperations`)
+- **SIMD-ready**: Estructuras preparadas para vectorización futura
+- **O(1) operations**: Lookup, insert, update y delete en tiempo constante
+
+#### Editor Visual de Timeline
+- **Drag & drop intuitivo**: Arrastra eventos desde biblioteca a canales
+- **Multi-canal**: Edita múltiples canales simultáneamente (Analog + Digital)
+- **Zoom dinámico**: Ctrl + Mouse Wheel para precisión temporal
+- **Snap to grid**: Alineación automática a intervalos de 100ms
+- **Validación en tiempo real**: Detecta conflictos y parámetros inválidos
+
+#### Ejecución de Alta Precisión
+- **Timing sub-millisegundo**: ±100μs de precisión usando Stopwatch + SpinWait
+- **Ejecución paralela**: Eventos simultáneos ejecutan en paralelo real (Task.WhenAll)
+- **Multi-dispositivo**: Control simultáneo de PCIe-1824 y PCI-1735U
+- **Looping**: Repetición automática de secuencias
+
+#### Tipos de Eventos Soportados
+| Tipo | Descripción | Parámetros |
+|------|-------------|------------|
+| **Ramp** | Rampa de voltaje | Start Voltage (0-10V), End Voltage (0-10V), Duration |
+| **DC** | Nivel DC constante | Voltage (0-10V), Duration |
+| **Waveform** | Señal senoidal | Frequency (Hz), Amplitude (0-10V), Offset (0-10V) |
+| **Digital Pulse** | Pulso digital | Port (0-3), Bit (0-7), Duration |
+
+#### Mejoras Recientes (16-Mar-2026)
+- ✅ **Fix**: Drag & drop entre canales ahora actualiza correctamente device/channel info
+- ✅ **Fix**: Secuencias terminan exactamente al tiempo configurado (±10ms)
+- ✅ **Fix**: Eventos simultáneos ejecutan en paralelo real (sincronización de hardware)
 
 ## Requisitos del Sistema
 
@@ -162,27 +204,17 @@ Para soporte o preguntas, contacte a [correo de contacto].
 
 
 ## MMD:
-graph TD
-    %% Definición de estilos
-    classDef entryPoint fill:#f9d71c,stroke:#333,stroke-width:2px
-    classDef ui fill:#66ccff,stroke:#333,stroke-width:2px
-    classDef core fill:#ff9966,stroke:#333,stroke-width:2px
-    classDef interfaces fill:#99cc99,stroke:#333,stroke-width:2px
-    classDef managers fill:#cc99ff,stroke:#333,stroke-width:2px
-    classDef services fill:#ff99cc,stroke:#333,stroke-width:2px
-    classDef models fill:#ffcc99,stroke:#333,stroke-width:2px
-    classDef exceptions fill:#ff6666,stroke:#333,stroke-width:2px
-    classDef external fill:#cccccc,stroke:#333,stroke-width:2px
-
+```mermaid
+flowchart TD
     %% Capa de Entrada
     Program["Program.cs<br>(Entry Point)"]:::entryPoint
-    
+
     %% Capa de Presentación
     ConsoleUI["ConsoleUI.cs<br>(UI Layer)"]:::ui
-    
+
     %% Capa de Control
     DAQController["DAQController.cs<br>(Core Layer)"]:::core
-    
+
     %% Capa de Abstracción (Interfaces)
     subgraph Interfaces["Interfaces Layer"]
         IDeviceManager["IDeviceManager"]:::interfaces
@@ -191,54 +223,52 @@ graph TD
         ISignalGenerator["ISignalGenerator"]:::interfaces
         ILogger["ILogger"]:::interfaces
     end
-    
+
     %% Capa de Implementación
     subgraph Managers["Managers Layer"]
         ProfileManager["ProfileManager"]:::managers
         ChannelManager["ChannelManager"]:::managers
         DeviceManager["DeviceManager"]:::managers
     end
-    
+
     subgraph Services["Services Layer"]
         SignalGenerator["SignalGenerator"]:::services
         ConsoleLogger["ConsoleLogger"]:::services
     end
-    
+
     %% Capa de Modelo
     subgraph Models["Models Layer"]
         ChannelState["ChannelState"]:::models
         DeviceInfo["DeviceInfo"]:::models
     end
-    
+
     %% Capa de Excepciones
     subgraph Exceptions["Exceptions Layer"]
         DAQInitializationException["DAQInitializationException"]:::exceptions
     end
-    
+
     %% Dependencias Externas
     AutomationBDaq["Automation.BDaq<br>(External Library)"]:::external
-    
+
     %% Relaciones
     Program --> DAQController
     Program --> ConsoleUI
     ConsoleUI --> DAQController
-    
+
     DAQController --> IDeviceManager
     DAQController --> IChannelManager
     DAQController --> IProfileManager
     DAQController --> ISignalGenerator
     DAQController --> ILogger
-    
+
     IDeviceManager --> DeviceManager
     IChannelManager --> ChannelManager
     IProfileManager --> ProfileManager
     ISignalGenerator --> SignalGenerator
     ILogger --> ConsoleLogger
-    
+
     DeviceManager --> AutomationBDaq
     SignalGenerator --> AutomationBDaq
-    
+
     DeviceManager --> DeviceInfo
     ChannelManager --> ChannelState
-    
-    DAQController -.-> DAQInitializationException
