@@ -23,6 +23,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
         private CancellationTokenSource _cts;
         private ManualResetEventSlim _pauseEvent;
         private SignalSequence _currentSequence;
+        private bool _isLoopEnabled;
 
         public ExecutionEngine(Dictionary<string, DAQController> deviceControllers)
         {
@@ -76,6 +77,19 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
                         ActualTime = value 
                     });
                 }
+            }
+        }
+
+        public bool IsLoopEnabled
+        {
+            get { lock (this) { return _isLoopEnabled; } }
+            set 
+            { 
+                lock (this) 
+                { 
+                    _isLoopEnabled = value;
+                    System.Console.WriteLine($"[EXEC ENGINE] Loop control set to: {value}");
+                } 
             }
         }
 
@@ -175,10 +189,31 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
                 System.Console.WriteLine($"[EXEC ENGINE] All events executed successfully");
                 State = ExecutionState.Completed;
                 
-                // Reset to Idle after completion to allow re-execution
-                await Task.Delay(100); // Brief delay
-                State = ExecutionState.Idle;
-                System.Console.WriteLine($"[EXEC ENGINE] State reset to Idle - ready for next execution");
+                // Check if loop is enabled for auto-restart
+                bool shouldLoop = IsLoopEnabled;
+                System.Console.WriteLine($"[EXEC ENGINE] Loop enabled: {shouldLoop}");
+                
+                if (shouldLoop && !_cts.Token.IsCancellationRequested)
+                {
+                    System.Console.WriteLine($"[EXEC ENGINE] Loop enabled - restarting sequence '{_currentSequence.Name}'");
+                    await Task.Delay(100); // Brief delay
+                    
+                    // Reset timer and state
+                    _executionTimer.Restart();
+                    CurrentTime = TimeSpan.Zero;
+                    State = ExecutionState.Running;
+                    
+                    // Re-execute the sequence recursively
+                    await ExecuteSequenceAsync(_currentSequence, _cts.Token);
+                    return; // Exit here to avoid final cleanup
+                }
+                else
+                {
+                    // No loop - reset to Idle after completion
+                    await Task.Delay(100); // Brief delay
+                    State = ExecutionState.Idle;
+                    System.Console.WriteLine($"[EXEC ENGINE] Sequence completed - State reset to Idle");
+                }
             }
             catch (OperationCanceledException ex)
             {
@@ -255,13 +290,21 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
                     break;
 
                 case SignalEventType.Ramp:
-                    if (!evt.Parameters.ContainsKey("endVoltage"))
-                        throw new InvalidOperationException("Ramp event requires 'endVoltage' parameter.");
+                    if (!evt.Parameters.ContainsKey("startVoltage") || !evt.Parameters.ContainsKey("endVoltage"))
+                        throw new InvalidOperationException("Ramp event requires 'startVoltage' and 'endVoltage' parameters.");
 
-                    System.Console.WriteLine($"[EXEC ENGINE] Executing Ramp on {evt.DeviceModel}: Channel {evt.Channel}, End {evt.Parameters["endVoltage"]}V, Duration {evt.Duration.TotalMilliseconds}ms");
+                    double startV = evt.Parameters["startVoltage"];
+                    double endV = evt.Parameters["endVoltage"];
+                    
+                    System.Console.WriteLine($"[EXEC ENGINE] Executing Ramp on {evt.DeviceModel}: Channel {evt.Channel}, {startV}V → {endV}V, Duration {evt.Duration.TotalMilliseconds}ms");
+                    
+                    // Set initial voltage
+                    controller.SetChannelValue(evt.Channel, startV);
+                    
+                    // Execute ramp to end voltage
                     await controller.RampChannelValue(
                         evt.Channel,
-                        evt.Parameters["endVoltage"],
+                        endV,
                         (int)evt.Duration.TotalMilliseconds);
                     System.Console.WriteLine($"[EXEC ENGINE] Ramp executed successfully on {evt.DeviceModel}");
                     break;

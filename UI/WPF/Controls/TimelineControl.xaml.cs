@@ -386,8 +386,14 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
 
             // Calculate start time based on drop position
             double totalDurationSeconds = viewModel.TotalDurationSeconds;
-            TimeSpan startTime = TimeSpan.FromSeconds(dropPercentage * totalDurationSeconds);
-            System.Console.WriteLine($"[DROP] Calculated start time: {startTime.TotalSeconds:F2}s (Total duration: {totalDurationSeconds}s)");
+            double rawStartSeconds = dropPercentage * totalDurationSeconds;
+            
+            // CRITICAL: Snap to grid (0.1s = 100ms intervals for precise alignment)
+            double snapInterval = 0.1; // 100ms grid
+            double snappedStartSeconds = Math.Round(rawStartSeconds / snapInterval) * snapInterval;
+            
+            TimeSpan startTime = TimeSpan.FromSeconds(snappedStartSeconds);
+            System.Console.WriteLine($"[DROP] Raw: {rawStartSeconds:F3}s → Snapped: {snappedStartSeconds:F3}s (Grid: {snapInterval}s)");
 
             if (isExistingEvent)
             {

@@ -144,7 +144,8 @@
                     <StackPanel Grid.Row="0" Orientation="Horizontal" Background="#F9F9F9" Margin="10">
                         <Button Content="▶ Play" Command="{Binding PlayCommand}" Width="80" Margin="0,0,5,0"/>
                         <Button Content="⏸ Pause" Command="{Binding PauseCommand}" Width="80" Margin="0,0,5,0"/>
-                        <Button Content="⏹ Stop" Command="{Binding StopCommand}" Width="80" Margin="0,0,20,0"/>
+                        <Button Content="⏹ Stop" Command="{Binding StopCommand}" Width="80" Margin="0,0,10,0"/>
+                        <CheckBox Content="Loop Control" IsChecked="{Binding IsLoopEnabled}" VerticalAlignment="Center" Margin="0,0,20,0" FontWeight="Bold"/>
                         <TextBlock Text="Time:" VerticalAlignment="Center" Margin="0,0,5,0"/>
                         <TextBlock Text="{Binding CurrentTimeText}" VerticalAlignment="Center" FontWeight="Bold" MinWidth="60"/>
                         <Slider Value="{Binding CurrentTimeSeconds}" 
@@ -200,12 +201,19 @@
                             <TextBox Text="{Binding SelectedEventDurationMs, UpdateSourceTrigger=PropertyChanged}" 
                                      Margin="0,0,0,10"/>
 
+                            <!-- Start Voltage for Ramp events -->
+                            <TextBlock Text="Start Voltage (V):" FontWeight="Bold" Margin="0,0,0,5"
+                                       Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <TextBox Text="{Binding SelectedEventStartVoltage, UpdateSourceTrigger=PropertyChanged}" 
+                                     Margin="0,0,0,10"
+                                     Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
                             <!-- End Voltage for Ramp events -->
                             <TextBlock Text="End Voltage (V):" FontWeight="Bold" Margin="0,0,0,5"
-                                       Visibility="{Binding SelectedEventHasEndVoltage, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                       Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
                             <TextBox Text="{Binding SelectedEventEndVoltage, UpdateSourceTrigger=PropertyChanged}" 
                                      Margin="0,0,0,10"
-                                     Visibility="{Binding SelectedEventHasEndVoltage, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                     Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
                             <TextBlock Text="Description:" FontWeight="Bold" Margin="0,0,0,5"/>
                             <TextBox Text="{Binding SelectedEvent.Description, UpdateSourceTrigger=PropertyChanged}" 

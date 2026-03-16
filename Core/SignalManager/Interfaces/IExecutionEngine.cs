@@ -41,6 +41,11 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Interfaces
         TimeSpan CurrentTime { get; }
 
         /// <summary>
+        /// Gets or sets whether sequence should loop automatically after completion
+        /// </summary>
+        bool IsLoopEnabled { get; set; }
+
+        /// <summary>
         /// Event fired when execution state changes
         /// </summary>
         event EventHandler<ExecutionStateChangedEventArgs> StateChanged;

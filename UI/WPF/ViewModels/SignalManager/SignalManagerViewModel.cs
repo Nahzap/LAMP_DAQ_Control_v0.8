@@ -33,6 +33,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         private string _executionStateText;
         private long _totalDurationNanoseconds;
         private double _zoomLevel;
+        private bool _isLoopEnabled;
 
         public SignalManagerViewModel(DAQController daqController, IEnumerable<UI.Models.DAQDevice> allDetectedDevices)
         {
@@ -160,8 +161,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                     ((RelayCommand)DeleteEventCommand)?.RaiseCanExecuteChanged();
                     OnPropertyChanged(nameof(SelectedEventStartSeconds));
                     OnPropertyChanged(nameof(SelectedEventDurationMs));
+                    OnPropertyChanged(nameof(SelectedEventStartVoltage));
                     OnPropertyChanged(nameof(SelectedEventEndVoltage));
-                    OnPropertyChanged(nameof(SelectedEventHasEndVoltage));
+                    OnPropertyChanged(nameof(SelectedEventHasRampVoltages));
                 }
             }
         }
@@ -231,6 +233,22 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             }
         }
 
+        public double SelectedEventStartVoltage
+        {
+            get => SelectedEvent?.Parameters.ContainsKey("startVoltage") == true 
+                   ? SelectedEvent.Parameters["startVoltage"] 
+                   : 0;
+            set
+            {
+                if (SelectedEvent?.Parameters != null)
+                {
+                    SelectedEvent.Parameters["startVoltage"] = value;
+                    OnPropertyChanged();
+                    System.Console.WriteLine($"[PARAM CHANGE] startVoltage updated to {value}V for event '{SelectedEvent.Name}'");
+                }
+            }
+        }
+
         public double SelectedEventEndVoltage
         {
             get => SelectedEvent?.Parameters.ContainsKey("endVoltage") == true 
@@ -247,7 +265,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             }
         }
 
-        public bool SelectedEventHasEndVoltage => SelectedEvent?.EventType == SignalEventType.Ramp;
+        public bool SelectedEventHasRampVoltages => SelectedEvent?.EventType == SignalEventType.Ramp;
 
         public string StatusText
         {
@@ -305,6 +323,23 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
         // Playback speed locked at 1X (real-time: 1,000,000,000 ns/s)
         public string PlaybackSpeedText => "1X";
+
+        public bool IsLoopEnabled
+        {
+            get => _isLoopEnabled;
+            set
+            {
+                if (SetProperty(ref _isLoopEnabled, value))
+                {
+                    System.Console.WriteLine($"[LOOP CONTROL] Loop enabled: {value}");
+                    // Update execution engine loop setting
+                    if (_executionEngine != null)
+                    {
+                        _executionEngine.IsLoopEnabled = value;
+                    }
+                }
+            }
+        }
 
         #endregion
 
