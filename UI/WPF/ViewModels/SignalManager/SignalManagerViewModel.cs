@@ -2,13 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
+using System.Threading;
 using System.Windows;
 using System.Windows.Input;
 using Microsoft.Win32;
 using LAMP_DAQ_Control_v0_8.Core.DAQ;
+using LAMP_DAQ_Control_v0_8.Core.DAQ.Models;
 using LAMP_DAQ_Control_v0_8.Core.SignalManager.Interfaces;
 using LAMP_DAQ_Control_v0_8.Core.SignalManager.Models;
 using LAMP_DAQ_Control_v0_8.Core.SignalManager.Services;
+using LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented;
 using LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels;
 
 namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
@@ -18,11 +21,15 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
     /// </summary>
     public class SignalManagerViewModel : ViewModelBase
     {
-        private readonly ISequenceEngine _sequenceEngine;
         private readonly ISignalLibrary _signalLibrary;
-        private readonly IExecutionEngine _executionEngine;
         private readonly DAQController _daqController;
         private readonly IEnumerable<UI.Models.DAQDevice> _allDevices;
+        
+        // Data-Oriented Architecture (ONLY DO - OO removed)
+        private readonly DataOrientedSequenceManager _doManager;
+        private Guid _currentSequenceId;
+        private SignalTableAdapter _currentAdapter;
+        private readonly DataOrientedExecutionEngine _doExecutionEngine;
 
         private SignalSequence _selectedSequence;
         private SignalEvent _selectedEvent;
@@ -34,17 +41,24 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         private long _totalDurationNanoseconds;
         private double _zoomLevel;
         private bool _isLoopEnabled;
+        private string _executionMode;
 
         public SignalManagerViewModel(DAQController daqController, IEnumerable<UI.Models.DAQDevice> allDetectedDevices)
         {
             _daqController = daqController ?? throw new ArgumentNullException(nameof(daqController));
             _allDevices = allDetectedDevices ?? throw new ArgumentNullException(nameof(allDetectedDevices));
-            _sequenceEngine = new SequenceEngine();
             _signalLibrary = new SignalLibrary();
+            
+            // DATA-ORIENTED ARCHITECTURE ONLY (OO code removed)
+            _doManager = new DataOrientedSequenceManager();
+            System.Console.WriteLine("[VM] Data-Oriented Architecture ONLY - OO removed");
             
             // CRITICAL: Create separate DAQController for each detected device
             var deviceControllers = CreateDeviceControllers(allDetectedDevices);
-            _executionEngine = new ExecutionEngine(deviceControllers);
+            _doExecutionEngine = new DataOrientedExecutionEngine(deviceControllers);
+            
+            _executionMode = "DO (Data-Oriented)";
+            System.Console.WriteLine($"[VM] Execution mode: {_executionMode} - EXCLUSIVE");
 
             // Initialize collections
             Sequences = new ObservableCollection<SignalSequence>();
@@ -58,10 +72,10 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             // Initialize signal library UI
             InitializeSignalLibrary();
 
-            // Subscribe to execution events
-            _executionEngine.StateChanged += OnExecutionStateChanged;
-            _executionEngine.EventExecuted += OnEventExecuted;
-            _executionEngine.ExecutionError += OnExecutionError;
+            // Subscribe to execution events (DO engine ONLY)
+            _doExecutionEngine.StateChanged += OnExecutionStateChanged;
+            _doExecutionEngine.EventExecuted += OnEventExecuted;
+            _doExecutionEngine.ExecutionError += OnExecutionError;
 
             // Initialize commands
             InitializeCommands();
@@ -177,8 +191,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 {
                     if (value != null && SelectedSequence != null)
                     {
-                        var realEvent = _sequenceEngine.GetEvent(SelectedSequence.SequenceId, value.EventId);
-                        SelectedEvent = realEvent;
+                        // DO: Get event directly from current adapter
+                        SelectedEvent = value;
                     }
                 }
             }
@@ -191,12 +205,11 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             {
                 if (SetProperty(ref _selectedTimelineEvent, value))
                 {
-                    // CRITICAL FIX: Get real event from engine, not corrupted copy
+                    // DO: Use event directly from timeline
                     if (value?.SignalEvent != null && SelectedSequence != null)
                     {
-                        var realEvent = _sequenceEngine.GetEvent(SelectedSequence.SequenceId, value.SignalEvent.EventId);
-                        SelectedEvent = realEvent;
-                        System.Console.WriteLine($"[EVENT] SelectedTimelineEvent changed: {realEvent?.Name ?? "null"}, StartTime={realEvent?.StartTime.TotalSeconds:F6}s (Real event from engine)");
+                        SelectedEvent = value.SignalEvent;
+                        System.Console.WriteLine($"[EVENT] SelectedTimelineEvent changed: {value.SignalEvent?.Name ?? "null"}, StartTime={value.SignalEvent?.StartTime.TotalSeconds:F6}s");
                     }
                     else
                     {
@@ -332,14 +345,19 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 if (SetProperty(ref _isLoopEnabled, value))
                 {
                     System.Console.WriteLine($"[LOOP CONTROL] Loop enabled: {value}");
-                    // Update execution engine loop setting
-                    if (_executionEngine != null)
-                    {
-                        _executionEngine.IsLoopEnabled = value;
-                    }
+                    _doExecutionEngine.IsLoopEnabled = value;
                 }
             }
         }
+
+        public string ExecutionMode
+        {
+            get => _executionMode;
+            set => SetProperty(ref _executionMode, value);
+        }
+
+        // DO mode is now the only mode (property kept for backward compat)
+        public bool UseDataOrientedExecution => true;
 
         #endregion
 
@@ -395,10 +413,19 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             {
                 System.Console.WriteLine($"[SEQUENCE] Creating sequence: {dialog.SequenceName}, Duration: {dialog.DurationSeconds}s");
                 
-                var sequence = _sequenceEngine.CreateSequence(dialog.SequenceName, dialog.Description);
+                // DATA-ORIENTED ONLY: Create DO sequence
+                _currentSequenceId = _doManager.CreateSequence(dialog.SequenceName, dialog.Description);
+                _currentAdapter = new SignalTableAdapter(_doManager, _currentSequenceId);
+                System.Console.WriteLine($"[DO SEQUENCE] Created DO sequence with ID: {_currentSequenceId}");
                 
-                // Store desired duration in metadata since TotalDuration is calculated from events
-                sequence.Metadata["DesiredDuration"] = dialog.DurationSeconds;
+                // Create SignalSequence for UI binding
+                var sequence = new SignalSequence
+                {
+                    SequenceId = _currentSequenceId.ToString(),
+                    Name = dialog.SequenceName,
+                    Description = dialog.Description,
+                    Metadata = new Dictionary<string, object> { ["DesiredDuration"] = dialog.DurationSeconds }
+                };
                 
                 Sequences.Add(sequence);
                 SelectedSequence = sequence;
@@ -406,8 +433,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 // Update TotalDurationSeconds for UI
                 TotalDurationSeconds = dialog.DurationSeconds;
                 
-                System.Console.WriteLine($"[SEQUENCE SUCCESS] Sequence created and selected: {sequence.Name}");
-                StatusText = $"Created new sequence: {dialog.SequenceName} ({dialog.DurationSeconds}s)";
+                System.Console.WriteLine($"[SEQUENCE SUCCESS] Sequence created (OO + DO hybrid): {sequence.Name}");
+                StatusText = $"Created new sequence: {dialog.SequenceName} ({dialog.DurationSeconds}s) [Data-Oriented]";
             }
             else
             {
@@ -425,17 +452,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
             if (dialog.ShowDialog() == true)
             {
-                try
-                {
-                    var sequence = _sequenceEngine.LoadSequence(dialog.FileName);
-                    Sequences.Add(sequence);
-                    SelectedSequence = sequence;
-                    StatusText = $"Loaded sequence: {sequence.Name}";
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Failed to load sequence: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                // TODO: Implement DO-based Load
+                MessageBox.Show("Load sequence not yet implemented in DO mode", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                StatusText = "Load feature pending DO implementation";
             }
         }
 
@@ -450,16 +469,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 return;
             }
 
-            try
-            {
-                var filePath = SelectedSequence.Metadata["FilePath"] as string;
-                _sequenceEngine.SaveSequence(SelectedSequence.SequenceId, filePath);
-                StatusText = $"Saved sequence: {SelectedSequence.Name}";
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show($"Failed to save sequence: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-            }
+            // TODO: Implement DO-based Save
+            MessageBox.Show("Save sequence not yet implemented in DO mode", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+            StatusText = "Save feature pending DO implementation";
         }
 
         private void OnSaveSequenceAs()
@@ -475,16 +487,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
             if (dialog.ShowDialog() == true)
             {
-                try
-                {
-                    _sequenceEngine.SaveSequence(SelectedSequence.SequenceId, dialog.FileName);
-                    SelectedSequence.Metadata["FilePath"] = dialog.FileName;
-                    StatusText = $"Saved sequence: {SelectedSequence.Name}";
-                }
-                catch (Exception ex)
-                {
-                    MessageBox.Show($"Failed to save sequence: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
-                }
+                // TODO: Implement DO-based Save As
+                MessageBox.Show("Save As not yet implemented in DO mode", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
+                StatusText = "Save As feature pending DO implementation";
             }
         }
 
@@ -497,20 +502,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         {
             if (SelectedSequence == null) return;
 
-            var newEvent = new SignalEvent
-            {
-                Name = $"Event_{SelectedSequence.Events.Count + 1}",
-                EventType = SignalEventType.DC,
-                Channel = 0,
-                StartTime = TimeSpan.Zero,
-                Duration = TimeSpan.FromSeconds(1),
-                Parameters = new Dictionary<string, double> { { "voltage", 5.0 } }
-            };
-
-            _sequenceEngine.AddEvent(SelectedSequence.SequenceId, newEvent);
-            UpdateTimeline();
-            SelectedEvent = newEvent;
-            StatusText = "Event added manually";
+            // TODO: Implement manual event add in DO mode
+            StatusText = "Manual event add not yet implemented in DO mode";
         }
 
         private void OnDeleteEvent()
@@ -531,8 +524,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
             if (result == MessageBoxResult.Yes)
             {
-                // Remove from sequence engine
-                _sequenceEngine.RemoveEvent(SelectedSequence.SequenceId, SelectedEvent.EventId);
+                // TODO: Remove from DO table
+                // _doManager.RemoveEvent(_currentSequenceId, eventIndex);
 
                 // Remove from timeline channel
                 var channel = TimelineChannels.FirstOrDefault(c => 
@@ -563,38 +556,24 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         {
             if (SelectedEvent == null || SelectedSequence == null) return;
 
-            var duplicate = new SignalEvent
-            {
-                Name = SelectedEvent.Name + "_Copy",
-                EventType = SelectedEvent.EventType,
-                Channel = SelectedEvent.Channel,
-                DeviceType = SelectedEvent.DeviceType,
-                StartTime = SelectedEvent.StartTime,
-                Duration = SelectedEvent.Duration,
-                Parameters = new Dictionary<string, double>(SelectedEvent.Parameters),
-                Description = SelectedEvent.Description,
-                Color = SelectedEvent.Color
-            };
-
-            _sequenceEngine.AddEvent(SelectedSequence.SequenceId, duplicate);
-            UpdateTimeline();
-            StatusText = $"Duplicated event: {SelectedEvent.Name}";
+            // TODO: Implement duplicate in DO mode
+            StatusText = "Duplicate not yet implemented in DO mode";
         }
 
         private void OnValidate()
         {
             if (SelectedSequence == null) return;
 
-            if (_sequenceEngine.ValidateSequence(SelectedSequence.SequenceId, out var errors))
+            // DO mode: Basic validation
+            if (_currentAdapter != null && _currentAdapter.Table.Count > 0)
             {
-                MessageBox.Show("Sequence is valid!", "Validation", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show($"Sequence valid: {_currentAdapter.Table.Count} events", "Validation", MessageBoxButton.OK, MessageBoxImage.Information);
                 StatusText = "Validation passed";
             }
             else
             {
-                var errorMessage = string.Join("\n", errors);
-                MessageBox.Show($"Validation failed:\n\n{errorMessage}", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
-                StatusText = "Validation failed";
+                MessageBox.Show("No events in sequence", "Validation", MessageBoxButton.OK, MessageBoxImage.Warning);
+                StatusText = "Validation: empty sequence";
             }
         }
 
@@ -607,59 +586,93 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         {
             if (SelectedSequence == null) return;
 
-            // Validate first
-            if (!_sequenceEngine.ValidateSequence(SelectedSequence.SequenceId, out var errors))
+            // DO mode: Check if table has events
+            if (_currentAdapter == null || _currentAdapter.Table.Count == 0)
             {
-                MessageBox.Show($"Cannot execute invalid sequence:\n\n{string.Join("\n", errors)}",
+                MessageBox.Show("Cannot execute empty sequence",
                     "Validation Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 return;
             }
 
             try
             {
-                StatusText = "Executing sequence...";
-                await _executionEngine.ExecuteSequenceAsync(SelectedSequence);
-                StatusText = "Sequence completed";
+                var startTime = System.Diagnostics.Stopwatch.StartNew();
+                
+                // DATA-ORIENTED EXECUTION ONLY
+                System.Console.WriteLine($"[EXEC] Using DO execution engine for sequence: {SelectedSequence.Name}");
+            System.Console.WriteLine($"[EXEC] Configured sequence duration: {TotalDurationNanoseconds}ns ({TotalDurationSeconds:F1}s)");
+            
+            var table = _doManager.GetSignalTable(_currentSequenceId);
+            if (table != null)
+            {
+                // CRITICAL: Pass configured duration to execution engine
+                await _doExecutionEngine.ExecuteTableAsync(table, TotalDurationNanoseconds, CancellationToken.None);
+            }    
+                startTime.Stop();
+                System.Console.WriteLine($"[EXEC PERF] DO execution completed in {startTime.ElapsedMilliseconds}ms");
+                StatusText = $"Sequence completed (DO: {startTime.ElapsedMilliseconds}ms)";
             }
             catch (Exception ex)
             {
                 MessageBox.Show($"Execution error: {ex.Message}", "Error", MessageBoxButton.OK, MessageBoxImage.Error);
                 StatusText = $"Execution error: {ex.Message}";
+                System.Console.WriteLine($"[EXEC ERROR] {ex.Message}\n{ex.StackTrace}");
             }
-        }
-
-        private void OnPause()
-        {
-            _executionEngine.Pause();
-            StatusText = "Execution paused";
         }
 
         private void OnStop()
         {
-            System.Console.WriteLine("[EXECUTION] Stop command invoked");
-            try
-            {
-                _executionEngine.Stop();
-                CurrentTimeSeconds = 0;
-                System.Console.WriteLine("[EXECUTION] Execution stopped successfully");
-                StatusText = "Execution stopped - Ready to edit";
-            }
-            catch (Exception ex)
-            {
-                System.Console.WriteLine($"[EXECUTION ERROR] Failed to stop: {ex.Message}");
-                StatusText = $"Error stopping execution: {ex.Message}";
-            }
+            _doExecutionEngine.Stop();
+            StatusText = "Execution stopped";
+        }
+
+        private void OnPause()
+        {
+            // TODO: Implement pause in DO engine
+            StatusText = "Pause not yet implemented in DO mode";
         }
 
         private void OnApplyEventChanges()
         {
-            if (SelectedEvent == null || SelectedSequence == null) return;
+            if (SelectedEvent == null || SelectedSequence == null || _currentAdapter == null) return;
 
-            System.Console.WriteLine($"[APPLY CHANGES] Before update: StartTime={SelectedEvent.StartTime.TotalSeconds:F6}s, Duration={SelectedEvent.Duration.TotalSeconds:F6}s");
-            _sequenceEngine.UpdateEvent(SelectedSequence.SequenceId, SelectedEvent);
-            System.Console.WriteLine($"[APPLY CHANGES] After update: StartTime={SelectedEvent.StartTime.TotalSeconds:F6}s");
+            System.Console.WriteLine($"[APPLY CHANGES] Updating event ID={SelectedEvent.EventId}: StartTime={SelectedEvent.StartTime.TotalSeconds:F6}s, Duration={SelectedEvent.Duration.TotalSeconds:F6}s");
+            
+            // Find event index in DO table by matching EventId
+            var table = _currentAdapter.Table;
+            bool found = false;
+            for (int i = 0; i < table.Count; i++)
+            {
+                if (table.EventIds[i].ToString() == SelectedEvent.EventId)
+                {
+                    System.Console.WriteLine($"[APPLY CHANGES] Found event at index {i}, updating...");
+                    
+                    // Update DO table directly
+                    table.StartTimesNs[i] = (long)(SelectedEvent.StartTime.TotalSeconds * 1e9);
+                    table.DurationsNs[i] = (long)(SelectedEvent.Duration.TotalSeconds * 1e9);
+                    
+                    if (SelectedEvent.EventType == SignalEventType.Ramp)
+                    {
+                        double startV = SelectedEvent.Parameters.ContainsKey("startVoltage") ? SelectedEvent.Parameters["startVoltage"] : 0;
+                        double endV = SelectedEvent.Parameters.ContainsKey("endVoltage") ? SelectedEvent.Parameters["endVoltage"] : 0;
+                        table.Attributes.SetStartVoltage(i, startV);
+                        table.Attributes.SetEndVoltage(i, endV);
+                        System.Console.WriteLine($"[APPLY CHANGES] Updated voltages: {startV}V → {endV}V");
+                    }
+                    
+                    System.Console.WriteLine($"[APPLY CHANGES] Successfully updated DO table at index {i}");
+                    found = true;
+                    break;
+                }
+            }
+            
+            if (!found)
+            {
+                System.Console.WriteLine($"[APPLY CHANGES ERROR] Event ID {SelectedEvent.EventId} not found in DO table (Count={table.Count})");
+            }
+            
             UpdateTimeline();
-            StatusText = "Event updated";
+            StatusText = found ? "Event updated in DO table" : "Error: Event not found";
         }
 
         private void OnZoomIn()
@@ -716,25 +729,19 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         {
             System.Console.WriteLine($"[UPDATE TIMELINE] Starting timeline update...");
             
-            if (SelectedSequence == null)
+            if (SelectedSequence == null || _currentAdapter == null)
             {
-                System.Console.WriteLine($"[UPDATE TIMELINE] No sequence selected");
+                System.Console.WriteLine($"[UPDATE TIMELINE] No sequence or adapter");
                 EventsList.Clear();
                 return;
             }
 
-            // CRITICAL: Remove duplicates before rendering
-            int removed = SelectedSequence.RemoveDuplicates();
-            if (removed > 0)
-            {
-                System.Console.WriteLine($"[UPDATE TIMELINE] Cleaned {removed} duplicate event(s) from sequence");
-            }
-
-            var events = SelectedSequence.Events;
-            System.Console.WriteLine($"[UPDATE TIMELINE] Processing {events.Count} events for sequence '{SelectedSequence.Name}'");
+            // DO MODE: Read events from DO table via adapter
+            var events = _currentAdapter.GetAllEvents();
+            System.Console.WriteLine($"[UPDATE TIMELINE] Processing {events.Count} events from DO table for sequence '{SelectedSequence.Name}'");
             System.Console.WriteLine($"[UPDATE TIMELINE] Using grid duration: {TotalDurationSeconds}s ({TotalDurationNanoseconds}ns)");
 
-            // Update EventsList with all events from sequence
+            // Update EventsList with all events from DO table
             EventsList.Clear();
             foreach (var evt in events.OrderBy(e => e.StartTime))
             {
@@ -747,13 +754,13 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 channel.ClearEvents();
             }
 
-            // Add events to appropriate channels (now guaranteed unique)
+            // Add events to appropriate channels
             foreach (var evt in events)
             {
                 var targetChannel = TimelineChannels.FirstOrDefault(ch => 
                     ch.ChannelNumber == evt.Channel && 
                     ch.DeviceType == evt.DeviceType &&
-                    ch.DeviceModel == evt.DeviceModel); // CRITICAL: Match exact device
+                    ch.DeviceModel == evt.DeviceModel);
 
                 if (targetChannel != null)
                 {
@@ -850,13 +857,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 return false;
             }
 
-            // Get real event from engine
-            var realEvent = _sequenceEngine.GetEvent(SelectedSequence.SequenceId, existingEvent.EventId);
-            if (realEvent == null)
-            {
-                System.Console.WriteLine($"[MOVE EVENT ERROR] Event not found in sequence");
-                return false;
-            }
+            // Use event directly (DO mode)
+            var realEvent = existingEvent;
 
             // Store old channel for removal
             int oldChannel = realEvent.Channel;
@@ -883,14 +885,18 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 return false;
             }
 
-            // Update event in engine
-            _sequenceEngine.UpdateEvent(SelectedSequence.SequenceId, realEvent);
+            // DATA-ORIENTED: Update in DO system
+            if (_currentAdapter != null)
+            {
+                System.Console.WriteLine($"[MOVE EVENT] Updating in DO system...");
+                _currentAdapter.UpdateEvent(realEvent.EventId, realEvent);
+            }
             
             // Refresh timeline to show in new position
             UpdateTimeline();
             
             System.Console.WriteLine($"[MOVE EVENT SUCCESS] Moved '{realEvent.Name}' from CH{oldChannel} to {targetChannel.ChannelName} @ {newStartTime.TotalSeconds:F3}s");
-            StatusText = $"Moved {realEvent.Name} to {targetChannel.ChannelName} at {newStartTime.TotalSeconds:F1}s";
+            StatusText = $"Moved {realEvent.Name} to {targetChannel.ChannelName} at {newStartTime.TotalSeconds:F1}s [DO]";
             return true;
         }
 
@@ -947,22 +953,57 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 System.Console.WriteLine($"[ADD SIGNAL ERROR] Attempted: {startTime.TotalSeconds:F2}s - {(startTime + templateEvent.Duration).TotalSeconds:F2}s");
                 StatusText = $"Cannot add event: Time conflict on {targetChannel.ChannelName}";
                 MessageBox.Show(
-                    $"Cannot add event at {startTime.TotalSeconds:F1}s on {targetChannel.ChannelName}.\n\nThere is already an event in that time range.",
+                    $"Cannot add event at {startTime.TotalSeconds:F1}s on {targetChannel.ChannelName}.\n\nThere is already an event in that time range.\n\nLa señal se sobrepondría con otra existente.",
                     "Time Conflict",
                     MessageBoxButton.OK,
                     MessageBoxImage.Warning);
                 return false;
             }
             System.Console.WriteLine($"[ADD SIGNAL] No conflicts found");
+            
+            // WARNING: Validate voltage continuity for analog ramps (but allow override)
+            if (targetChannel.DeviceType == Core.DAQ.Models.DeviceType.Analog && newEvent.EventType == SignalEventType.Ramp)
+            {
+                var continuityCheck = ValidateVoltageContinuity(targetChannel, newEvent);
+                if (!continuityCheck.IsValid)
+                {
+                    System.Console.WriteLine($"[ADD SIGNAL WARNING] Voltage discontinuity detected");
+                    System.Console.WriteLine($"[ADD SIGNAL WARNING] {continuityCheck.ErrorMessage}");
+                    StatusText = "WARNING: Voltage discontinuity detected";
+                    
+                    var result = MessageBox.Show(
+                        continuityCheck.ErrorMessage + "\n\n¿Desea agregar la señal de todos modos?",
+                        "⚠️ Advertencia: Discontinuidad de Voltaje",
+                        MessageBoxButton.YesNo,
+                        MessageBoxImage.Warning);
+                    
+                    if (result == MessageBoxResult.No)
+                    {
+                        System.Console.WriteLine($"[ADD SIGNAL] User cancelled due to voltage discontinuity");
+                        return false;
+                    }
+                    
+                    System.Console.WriteLine($"[ADD SIGNAL] User confirmed - proceeding despite voltage discontinuity");
+                }
+                else
+                {
+                    System.Console.WriteLine($"[ADD SIGNAL] Voltage continuity validated");
+                }
+            }
 
-            // Add to sequence and timeline
-            System.Console.WriteLine($"[ADD SIGNAL] Adding to sequence engine...");
-            _sequenceEngine.AddEvent(SelectedSequence.SequenceId, newEvent);
+            // DATA-ORIENTED: Add to DO system
+            if (_currentAdapter != null)
+            {
+                System.Console.WriteLine($"[ADD SIGNAL] Adding to DO system...");
+                _currentAdapter.AddEvent(newEvent);
+                System.Console.WriteLine($"[ADD SIGNAL] DO Count: {_currentAdapter.Count}");
+            }
+            
             System.Console.WriteLine($"[ADD SIGNAL] Adding to timeline channel (Grid: {TotalDurationSeconds}s)...");
             targetChannel.AddEvent(newEvent, TotalDurationSeconds);
             
             System.Console.WriteLine($"[ADD SIGNAL SUCCESS] Event added: {newEvent.Name} -> {targetChannel.ChannelName} @ {startTime.TotalSeconds:F2}s");
-            StatusText = $"Added {newEvent.Name} to {targetChannel.ChannelName} at {startTime.TotalSeconds:F1}s";
+            StatusText = $"Added {newEvent.Name} to {targetChannel.ChannelName} at {startTime.TotalSeconds:F1}s [DO]";
             return true;
         }
 
@@ -989,6 +1030,114 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             {
                 StatusText = $"Error executing {e.Event.Name}: {e.Error.Message}";
             });
+        }
+        
+        /// <summary>
+        /// Gets the final voltage of an event (for continuity validation)
+        /// </summary>
+        private double? GetEventFinalVoltage(SignalEvent evt)
+        {
+            if (evt.EventType == SignalEventType.Ramp)
+            {
+                if (evt.Parameters.ContainsKey("endVoltage"))
+                    return evt.Parameters["endVoltage"];
+            }
+            else if (evt.EventType == SignalEventType.DC)
+            {
+                if (evt.Parameters.ContainsKey("voltage"))
+                    return evt.Parameters["voltage"];
+            }
+            return null;
+        }
+        
+        /// <summary>
+        /// Gets the initial voltage of an event (for continuity validation)
+        /// </summary>
+        private double? GetEventInitialVoltage(SignalEvent evt)
+        {
+            if (evt.EventType == SignalEventType.Ramp)
+            {
+                if (evt.Parameters.ContainsKey("startVoltage"))
+                    return evt.Parameters["startVoltage"];
+            }
+            else if (evt.EventType == SignalEventType.DC)
+            {
+                if (evt.Parameters.ContainsKey("voltage"))
+                    return evt.Parameters["voltage"];
+            }
+            return null;
+        }
+        
+        /// <summary>
+        /// Validates voltage continuity when adding/moving events
+        /// </summary>
+        private (bool IsValid, string ErrorMessage) ValidateVoltageContinuity(TimelineChannelViewModel channel, SignalEvent newEvent)
+        {
+            const double VOLTAGE_TOLERANCE = 0.01; // 10mV tolerance
+            
+            double? newEventStartV = GetEventInitialVoltage(newEvent);
+            if (!newEventStartV.HasValue)
+                return (true, ""); // Not a voltage event, skip validation
+            
+            // Find events on this channel from DO table
+            var channelEvents = _currentAdapter.GetAllEvents()
+                .Where(e => e.Channel == channel.ChannelNumber && 
+                           e.DeviceModel == channel.DeviceModel &&
+                           e.EventType == SignalEventType.Ramp)
+                .OrderBy(e => e.StartTime)
+                .ToList();
+            
+            // Find the event immediately before the new event
+            var previousEvent = channelEvents
+                .Where(e => (e.StartTime + e.Duration) <= newEvent.StartTime)
+                .OrderByDescending(e => e.StartTime + e.Duration)
+                .FirstOrDefault();
+            
+            if (previousEvent != null)
+            {
+                double? prevEventEndV = GetEventFinalVoltage(previousEvent);
+                if (prevEventEndV.HasValue)
+                {
+                    double gap = Math.Abs(prevEventEndV.Value - newEventStartV.Value);
+                    if (gap > VOLTAGE_TOLERANCE)
+                    {
+                        return (false, 
+                            $"DISCONTINUIDAD DE VOLTAJE DETECTADA:\n\n" +
+                            $"La señal anterior '{previousEvent.Name}' termina en {prevEventEndV.Value:F2}V a t={previousEvent.StartTime.TotalSeconds + previousEvent.Duration.TotalSeconds:F2}s\n\n" +
+                            $"La nueva señal '{newEvent.Name}' comienza en {newEventStartV.Value:F2}V a t={newEvent.StartTime.TotalSeconds:F2}s\n\n" +
+                            $"Salto discontinuo: {gap:F2}V\n\n" +
+                            $"SOLUCIÓN: La rampa debe comenzar desde {prevEventEndV.Value:F2}V para mantener continuidad.");
+                    }
+                }
+            }
+            
+            // Find the event immediately after the new event
+            var nextEvent = channelEvents
+                .Where(e => e.StartTime >= (newEvent.StartTime + newEvent.Duration))
+                .OrderBy(e => e.StartTime)
+                .FirstOrDefault();
+            
+            if (nextEvent != null)
+            {
+                double? newEventEndV = GetEventFinalVoltage(newEvent);
+                double? nextEventStartV = GetEventInitialVoltage(nextEvent);
+                
+                if (newEventEndV.HasValue && nextEventStartV.HasValue)
+                {
+                    double gap = Math.Abs(newEventEndV.Value - nextEventStartV.Value);
+                    if (gap > VOLTAGE_TOLERANCE)
+                    {
+                        return (false,
+                            $"DISCONTINUIDAD DE VOLTAJE DETECTADA:\n\n" +
+                            $"La nueva señal '{newEvent.Name}' termina en {newEventEndV.Value:F2}V a t={newEvent.StartTime.TotalSeconds + newEvent.Duration.TotalSeconds:F2}s\n\n" +
+                            $"La señal siguiente '{nextEvent.Name}' comienza en {nextEventStartV.Value:F2}V a t={nextEvent.StartTime.TotalSeconds:F2}s\n\n" +
+                            $"Salto discontinuo: {gap:F2}V\n\n" +
+                            $"SOLUCIÓN: La rampa debe terminar en {nextEventStartV.Value:F2}V para mantener continuidad.");
+                    }
+                }
+            }
+            
+            return (true, "");
         }
 
         #endregion

@@ -128,7 +128,7 @@
                                                     <Setter.Value>
                                                         <MultiBinding Converter="{StaticResource PercentageToPixelConverter}">
                                                             <Binding Path="LeftPosition"/>
-                                                            <Binding RelativeSource="{RelativeSource AncestorType=Border}" Path="ActualWidth"/>
+                                                            <Binding Path="DataContext.TimelineWidth" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
                                                         </MultiBinding>
                                                     </Setter.Value>
                                                 </Setter>
@@ -148,7 +148,7 @@
                                                     <Border.Width>
                                                         <MultiBinding Converter="{StaticResource PercentageToPixelConverter}">
                                                             <Binding Path="Width"/>
-                                                            <Binding RelativeSource="{RelativeSource AncestorType=Border, AncestorLevel=2}" Path="ActualWidth"/>
+                                                            <Binding Path="DataContext.TimelineWidth" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
                                                         </MultiBinding>
                                                     </Border.Width>
                                                     <TextBlock Text="{Binding SignalEvent.Name}" 

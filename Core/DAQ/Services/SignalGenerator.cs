@@ -26,6 +26,18 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         
         // CRITICAL FIX: Track last written values per channel for smooth ramps
         private readonly Dictionary<int, double> _lastWrittenValues = new Dictionary<int, double>();
+        
+        // HIGH-PRECISION TIMING: Stopwatch calibration for nanosecond accuracy
+        private static readonly double _ticksToNanoseconds;
+        
+        static SignalGenerator()
+        {
+            // Calibrate Stopwatch ticks to nanoseconds conversion
+            _ticksToNanoseconds = 1_000_000_000.0 / Stopwatch.Frequency;
+            System.Console.WriteLine($"[SIGNAL GEN CALIBRATION] Stopwatch Frequency: {Stopwatch.Frequency} Hz");
+            System.Console.WriteLine($"[SIGNAL GEN CALIBRATION] Ticks to Nanoseconds: {_ticksToNanoseconds:F6} ns/tick");
+            System.Console.WriteLine($"[SIGNAL GEN CALIBRATION] High Resolution: {Stopwatch.IsHighResolution}");
+        }
 
         /// <summary>
         /// Initializes a new instance of the SignalGenerator class
@@ -154,7 +166,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         }
 
         /// <summary>
-        /// Ramps a channel to a target value over the specified duration
+        /// Ramps a channel to a target value over the specified duration with HIGH PRECISION timing
         /// </summary>
         public async Task SetDcValueAsync(int channel, double targetValue, int durationMs)
         {
@@ -168,37 +180,101 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                 const int steps = 100;
                 
                 // CRITICAL FIX: Get last written value for this channel
-                // This enables smooth ramps in both directions (ascending and descending)
                 double currentValue = _lastWrittenValues.ContainsKey(channel) 
                     ? _lastWrittenValues[channel] 
-                    : 0.0; // Default to 0V if no previous write
+                    : 0.0;
                 
-                _logger.Debug($"Starting ramp from {currentValue}V to {targetValue}V over {durationMs}ms");
+                // AUDIT LOG: Detailed timing information
+                var auditStartTime = DateTime.Now;
+                System.Console.WriteLine($"[RAMP AUDIT START] {auditStartTime:HH:mm:ss.ffffff} | CH{channel} | {currentValue:F3}V → {targetValue:F3}V | Duration: {durationMs}ms");
                 
-                double step = (targetValue - currentValue) / steps;
-                int delay = durationMs / steps;
-
+                double voltageStep = (targetValue - currentValue) / steps;
+                long durationNs = durationMs * 1_000_000L; // Convert to nanoseconds
+                long stepNs = durationNs / steps;
+                
+                // HIGH-PRECISION TIMING: Use Stopwatch instead of Task.Delay
+                var rampTimer = Stopwatch.StartNew();
+                long stepDelayTicks = (long)(stepNs / _ticksToNanoseconds);
+                
+                System.Console.WriteLine($"[RAMP CONFIG] Steps: {steps} | Step Voltage: {voltageStep:F6}V | Step Duration: {stepNs / 1_000_000.0:F3}ms ({stepDelayTicks} ticks)");
+                
                 for (int i = 0; i < steps; i++)
                 {
                     if (_disposed) return;
                     
-                    currentValue += step;
+                    // Calculate target time for this step
+                    long targetTicks = (i + 1) * stepDelayTicks;
+                    
+                    // Update voltage
+                    currentValue += voltageStep;
                     _device.Write(channel, currentValue);
-                    await Task.Delay(delay);
+                    
+                    // HIGH-PRECISION WAIT: Hybrid SpinWait + Task.Delay approach
+                    await HighPrecisionWaitAsync(rampTimer, targetTicks);
+                    
+                    // AUDIT LOG: Every 20 steps or at critical points
+                    if (i % 20 == 0 || i == steps - 1)
+                    {
+                        long actualNs = (long)(rampTimer.ElapsedTicks * _ticksToNanoseconds);
+                        long expectedNs = (i + 1) * stepNs;
+                        long stepErrorNs = actualNs - expectedNs;
+                        System.Console.WriteLine($"[RAMP STEP {i + 1}/{steps}] Voltage: {currentValue:F3}V | Expected: {expectedNs / 1_000_000.0:F3}ms | Actual: {actualNs / 1_000_000.0:F3}ms | Error: {stepErrorNs / 1_000_000.0:F3}ms");
+                    }
                 }
 
                 // Ensure we hit the exact target value
                 _device.Write(channel, targetValue);
-                
-                // Track final value
                 _lastWrittenValues[channel] = targetValue;
                 
-                _logger.Debug($"Ramp completed on channel {channel} to {targetValue}V over {durationMs}ms");
+                rampTimer.Stop();
+                long totalNs = (long)(rampTimer.ElapsedTicks * _ticksToNanoseconds);
+                long errorNs = totalNs - durationNs;
+                double errorPercent = (errorNs / (double)durationNs) * 100.0;
+                
+                var auditEndTime = DateTime.Now;
+                System.Console.WriteLine($"[RAMP AUDIT END] {auditEndTime:HH:mm:ss.ffffff} | CH{channel} | Final: {targetValue:F3}V");
+                System.Console.WriteLine($"[RAMP TIMING] Programmed: {durationMs}ms | Actual: {totalNs / 1_000_000.0:F3}ms | Error: {errorNs / 1_000_000.0:F3}ms ({errorPercent:F2}%)");
+                
+                _logger.Debug($"Ramp completed on channel {channel}: {currentValue:F3}V → {targetValue:F3}V in {totalNs / 1_000_000.0:F3}ms");
             }
             catch (Exception ex)
             {
+                System.Console.WriteLine($"[RAMP ERROR] Channel {channel}: {ex.Message}");
                 _logger.Error($"Error during ramp operation on channel {channel}", ex);
                 throw new DAQOperationException($"Ramp operation failed on channel {channel}", ex);
+            }
+        }
+        
+        /// <summary>
+        /// High-precision async wait using hybrid approach (SpinWait for precision, Task.Delay for efficiency)
+        /// </summary>
+        private async Task HighPrecisionWaitAsync(Stopwatch timer, long targetTicks)
+        {
+            const long SPIN_THRESHOLD_TICKS = 100_000; // ~10ms threshold for spinning
+            const long TASK_DELAY_MARGIN_TICKS = 20_000; // ~2ms margin for Task.Delay imprecision
+            
+            long remainingTicks = targetTicks - timer.ElapsedTicks;
+            
+            // PHASE 1: Coarse wait with Task.Delay (if remaining time > threshold)
+            if (remainingTicks > SPIN_THRESHOLD_TICKS)
+            {
+                long coarseWaitTicks = remainingTicks - TASK_DELAY_MARGIN_TICKS;
+                if (coarseWaitTicks > 0)
+                {
+                    long coarseWaitNs = (long)(coarseWaitTicks * _ticksToNanoseconds);
+                    int coarseWaitMs = (int)(coarseWaitNs / 1_000_000);
+                    if (coarseWaitMs > 0)
+                    {
+                        await Task.Delay(coarseWaitMs);
+                    }
+                }
+            }
+            
+            // PHASE 2: Precision wait with SpinWait (final microseconds)
+            SpinWait spinner = new SpinWait();
+            while (timer.ElapsedTicks < targetTicks)
+            {
+                spinner.SpinOnce();
             }
         }
 

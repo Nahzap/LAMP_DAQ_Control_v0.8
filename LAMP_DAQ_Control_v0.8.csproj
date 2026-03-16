@@ -120,6 +120,13 @@
     <Compile Include="Core\SignalManager\Services\SequenceEngine.cs" />
     <Compile Include="Core\SignalManager\Services\SignalLibrary.cs" />
     <Compile Include="Core\SignalManager\Services\ExecutionEngine.cs" />
+    <!-- Data-Oriented Architecture -->
+    <Compile Include="Core\SignalManager\DataOriented\SignalAttributeStore.cs" />
+    <Compile Include="Core\SignalManager\DataOriented\SignalTable.cs" />
+    <Compile Include="Core\SignalManager\DataOriented\SignalOperations.cs" />
+    <Compile Include="Core\SignalManager\DataOriented\DataOrientedSequenceManager.cs" />
+    <Compile Include="Core\SignalManager\DataOriented\SignalTableAdapter.cs" />
+    <Compile Include="Core\SignalManager\DataOriented\DataOrientedExecutionEngine.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <!-- Core DAQ Components -->

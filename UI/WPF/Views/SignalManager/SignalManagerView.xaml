@@ -145,7 +145,17 @@
                         <Button Content="▶ Play" Command="{Binding PlayCommand}" Width="80" Margin="0,0,5,0"/>
                         <Button Content="⏸ Pause" Command="{Binding PauseCommand}" Width="80" Margin="0,0,5,0"/>
                         <Button Content="⏹ Stop" Command="{Binding StopCommand}" Width="80" Margin="0,0,10,0"/>
-                        <CheckBox Content="Loop Control" IsChecked="{Binding IsLoopEnabled}" VerticalAlignment="Center" Margin="0,0,20,0" FontWeight="Bold"/>
+                        <CheckBox Content="Loop Control" IsChecked="{Binding IsLoopEnabled}" VerticalAlignment="Center" Margin="0,0,10,0" FontWeight="Bold"/>
+                        <Border BorderBrush="#27AE60" BorderThickness="2" CornerRadius="3" Padding="8,2" Background="#D5F4E6" Margin="0,0,20,0">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="⚡" FontSize="14" VerticalAlignment="Center" Margin="0,0,5,0" Foreground="#27AE60"/>
+                                <TextBlock Text="{Binding ExecutionMode}" 
+                                           VerticalAlignment="Center" 
+                                           FontSize="12"
+                                           FontWeight="Bold"
+                                           Foreground="#229954"/>
+                            </StackPanel>
+                        </Border>
                         <TextBlock Text="Time:" VerticalAlignment="Center" Margin="0,0,5,0"/>
                         <TextBlock Text="{Binding CurrentTimeText}" VerticalAlignment="Center" FontWeight="Bold" MinWidth="60"/>
                         <Slider Value="{Binding CurrentTimeSeconds}" 

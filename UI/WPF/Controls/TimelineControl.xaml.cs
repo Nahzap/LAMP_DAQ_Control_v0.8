@@ -72,15 +72,43 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
             var viewModel = DataContext as SignalManagerViewModel;
             if (viewModel == null) return;
 
+            // CRITICAL: Get mouse position BEFORE zoom to keep it centered
+            Point mousePos = e.GetPosition(TimelineScrollViewer);
+            double currentScroll = TimelineScrollViewer.HorizontalOffset;
+            double currentWidth = viewModel.TimelineWidth;
+            
+            // Calculate the time position under the mouse (normalized 0-1)
+            double mouseTimeRatio = (currentScroll + mousePos.X - 120) / currentWidth; // 120px = labels column
+            if (mouseTimeRatio < 0) mouseTimeRatio = 0;
+            if (mouseTimeRatio > 1) mouseTimeRatio = 1;
+            
+            System.Console.WriteLine($"[ZOOM BEFORE] Mouse at X={mousePos.X:F0}px, Scroll={currentScroll:F0}px, Width={currentWidth:F0}px, TimeRatio={mouseTimeRatio:F3}");
+
             // Zoom gradual: ±10% por cada paso
             double factor = e.Delta > 0 ? 1.1 : 0.9091; // 1/1.1 = 0.9091
-            double newZoom = viewModel.ZoomLevel * factor;
+            double oldZoom = viewModel.ZoomLevel;
+            double newZoom = oldZoom * factor;
             
             // Limitar entre 0.1 y 100
             newZoom = Math.Max(0.1, Math.Min(100, newZoom));
             viewModel.ZoomLevel = newZoom;
             
-            System.Console.WriteLine($"[ZOOM] Level: {newZoom:F2}X, Width: {viewModel.TimelineWidth:F0}px");
+            // CRITICAL: Adjust scroll to keep mouse position at same time
+            // After zoom, the timeline width changes, so we need to recalculate scroll
+            Dispatcher.BeginInvoke(new Action(() =>
+            {
+                double newWidth = viewModel.TimelineWidth;
+                double targetScrollOffset = (mouseTimeRatio * newWidth) - (mousePos.X - 120);
+                
+                // Clamp to valid scroll range
+                targetScrollOffset = Math.Max(0, Math.Min(TimelineScrollViewer.ScrollableWidth, targetScrollOffset));
+                
+                TimelineScrollViewer.ScrollToHorizontalOffset(targetScrollOffset);
+                
+                System.Console.WriteLine($"[ZOOM AFTER] NewWidth={newWidth:F0}px, TargetScroll={targetScrollOffset:F0}px (kept time ratio {mouseTimeRatio:F3})");
+            }), System.Windows.Threading.DispatcherPriority.Loaded);
+            
+            System.Console.WriteLine($"[ZOOM] Level: {oldZoom:F2}X → {newZoom:F2}X");
             
             e.Handled = true;
         }
