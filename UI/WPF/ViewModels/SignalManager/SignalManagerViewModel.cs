@@ -122,6 +122,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         public ObservableCollection<TimelineChannelViewModel> TimelineChannels { get; }
         public ObservableCollection<SignalEvent> EventsList { get; private set; }
 
+        public bool IsSequenceSelected => SelectedSequence != null;
+
         public SignalSequence SelectedSequence
         {
             get => _selectedSequence;
@@ -129,6 +131,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             {
                 if (SetProperty(ref _selectedSequence, value))
                 {
+                    OnPropertyChanged(nameof(IsSequenceSelected));
                     UpdateTimeline();
                     if (value != null)
                     {
@@ -157,6 +160,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                     ((RelayCommand)DeleteEventCommand)?.RaiseCanExecuteChanged();
                     OnPropertyChanged(nameof(SelectedEventStartSeconds));
                     OnPropertyChanged(nameof(SelectedEventDurationMs));
+                    OnPropertyChanged(nameof(SelectedEventEndVoltage));
+                    OnPropertyChanged(nameof(SelectedEventHasEndVoltage));
                 }
             }
         }
@@ -225,6 +230,24 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 }
             }
         }
+
+        public double SelectedEventEndVoltage
+        {
+            get => SelectedEvent?.Parameters.ContainsKey("endVoltage") == true 
+                   ? SelectedEvent.Parameters["endVoltage"] 
+                   : 0;
+            set
+            {
+                if (SelectedEvent?.Parameters != null)
+                {
+                    SelectedEvent.Parameters["endVoltage"] = value;
+                    OnPropertyChanged();
+                    System.Console.WriteLine($"[PARAM CHANGE] endVoltage updated to {value}V for event '{SelectedEvent.Name}'");
+                }
+            }
+        }
+
+        public bool SelectedEventHasEndVoltage => SelectedEvent?.EventType == SignalEventType.Ramp;
 
         public string StatusText
         {
@@ -665,6 +688,13 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 return;
             }
 
+            // CRITICAL: Remove duplicates before rendering
+            int removed = SelectedSequence.RemoveDuplicates();
+            if (removed > 0)
+            {
+                System.Console.WriteLine($"[UPDATE TIMELINE] Cleaned {removed} duplicate event(s) from sequence");
+            }
+
             var events = SelectedSequence.Events;
             System.Console.WriteLine($"[UPDATE TIMELINE] Processing {events.Count} events for sequence '{SelectedSequence.Name}'");
             System.Console.WriteLine($"[UPDATE TIMELINE] Using grid duration: {TotalDurationSeconds}s ({TotalDurationNanoseconds}ns)");
@@ -682,7 +712,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 channel.ClearEvents();
             }
 
-            // Add events to appropriate channels
+            // Add events to appropriate channels (now guaranteed unique)
             foreach (var evt in events)
             {
                 var targetChannel = TimelineChannels.FirstOrDefault(ch => 

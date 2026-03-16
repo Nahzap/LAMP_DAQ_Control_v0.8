@@ -151,8 +151,46 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Models
             if (evt == null)
                 throw new ArgumentNullException(nameof(evt));
 
+            // CRITICAL: Prevent duplicates by EventId
+            if (Events.Any(e => e.EventId == evt.EventId))
+            {
+                System.Console.WriteLine($"[SEQUENCE] WARNING: Event '{evt.Name}' (ID: {evt.EventId}) already exists. Skipping duplicate.");
+                return;
+            }
+
             Events.Add(evt);
             Modified = DateTime.Now;
+        }
+        
+        /// <summary>
+        /// Removes all duplicate events (keeping first occurrence)
+        /// </summary>
+        public int RemoveDuplicates()
+        {
+            var seen = new HashSet<string>();
+            var duplicates = new List<SignalEvent>();
+            
+            foreach (var evt in Events)
+            {
+                if (!seen.Add(evt.EventId))
+                {
+                    duplicates.Add(evt);
+                    System.Console.WriteLine($"[SEQUENCE] Found duplicate: '{evt.Name}' (ID: {evt.EventId})");
+                }
+            }
+            
+            foreach (var dup in duplicates)
+            {
+                Events.Remove(dup);
+            }
+            
+            if (duplicates.Count > 0)
+            {
+                Modified = DateTime.Now;
+                System.Console.WriteLine($"[SEQUENCE] Removed {duplicates.Count} duplicate event(s)");
+            }
+            
+            return duplicates.Count;
         }
 
         /// <summary>

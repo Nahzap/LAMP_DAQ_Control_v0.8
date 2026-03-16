@@ -19,6 +19,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
         private ExecutionState _state;
         private TimeSpan _currentTime;
         private Stopwatch _executionTimer;
+        private System.Threading.Timer _playheadUpdateTimer;
         private CancellationTokenSource _cts;
         private ManualResetEventSlim _pauseEvent;
         private SignalSequence _currentSequence;
@@ -58,7 +59,24 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
         public TimeSpan CurrentTime
         {
             get { lock (this) { return _currentTime; } }
-            private set { lock (this) { _currentTime = value; } }
+            private set 
+            { 
+                TimeSpan oldValue;
+                lock (this) 
+                { 
+                    oldValue = _currentTime;
+                    _currentTime = value; 
+                }
+                // Fire PropertyChanged-like event for UI updates
+                if (oldValue != value)
+                {
+                    OnEventExecuted(new EventExecutedEventArgs 
+                    { 
+                        Event = null, 
+                        ActualTime = value 
+                    });
+                }
+            }
         }
 
         public event EventHandler<ExecutionStateChangedEventArgs> StateChanged;
@@ -95,6 +113,10 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
             
             System.Console.WriteLine($"[EXEC ENGINE] Starting execution timer");
 
+            // NUEVO: Start continuous playhead update timer (30ms = ~33 FPS)
+            _playheadUpdateTimer = new System.Threading.Timer(UpdatePlayheadCallback, null, 0, 30);
+            System.Console.WriteLine($"[EXEC ENGINE] Playhead update timer started (30ms interval)");
+
             try
             {
                 // Sort events by start time
@@ -127,8 +149,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
                         await ExecuteEventAsync(evt, _cts.Token);
                         System.Console.WriteLine($"[EXEC ENGINE] Event executed successfully: {evt.Name}");
 
-                        // Update current time
-                        CurrentTime = _executionTimer.Elapsed;
+                        // Current time updated continuously by timer (no need here)
 
                         // Fire event executed
                         OnEventExecuted(new EventExecutedEventArgs
@@ -173,6 +194,12 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
             }
             finally
             {
+                // Stop playhead update timer
+                _playheadUpdateTimer?.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite);
+                _playheadUpdateTimer?.Dispose();
+                _playheadUpdateTimer = null;
+                System.Console.WriteLine($"[EXEC ENGINE] Playhead update timer stopped");
+
                 _executionTimer?.Stop();
                 _cts?.Dispose();
                 _cts = null;
@@ -344,6 +371,18 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
         protected virtual void OnExecutionError(ExecutionErrorEventArgs e)
         {
             ExecutionError?.Invoke(this, e);
+        }
+
+        /// <summary>
+        /// Callback for continuous playhead updates during execution
+        /// </summary>
+        private void UpdatePlayheadCallback(object state)
+        {
+            if (_executionTimer != null && _executionTimer.IsRunning && State == ExecutionState.Running)
+            {
+                CurrentTime = _executionTimer.Elapsed;
+                // Note: CurrentTime setter fires PropertyChanged, which updates UI playhead
+            }
         }
     }
 }

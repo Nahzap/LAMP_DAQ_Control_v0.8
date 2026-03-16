@@ -25,6 +25,20 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Views.SignalManager
                 return;
             }
 
+            // CRITICAL FIX: Validate sequence selection BEFORE allowing drag
+            var viewModel = DataContext as ViewModels.SignalManager.SignalManagerViewModel;
+            if (viewModel?.SelectedSequence == null)
+            {
+                System.Console.WriteLine($"[DRAG BLOCKED] No sequence selected - showing user message");
+                MessageBox.Show(
+                    "Please create or select a sequence before adding signals.\n\nUse 'File > New Sequence' to get started.",
+                    "No Sequence Selected",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                e.Handled = true;
+                return;
+            }
+
             var border = sender as System.Windows.Controls.Border;
             System.Console.WriteLine($"[DRAG] Border found: {border != null}");
             

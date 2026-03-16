@@ -47,15 +47,31 @@
 
         <!-- Time Ruler Header -->
         <Border Grid.Row="0" Background="#E8E8E8" BorderBrush="#CCC" BorderThickness="0,0,0,1">
-            <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                <Canvas x:Name="TimeRulerCanvas" Width="{Binding TimelineWidth}">
-                    <!-- Time markers will be drawn here programmatically -->
-                </Canvas>
+            <ScrollViewer x:Name="RulerScrollViewer" 
+                          HorizontalScrollBarVisibility="Auto" 
+                          VerticalScrollBarVisibility="Disabled"
+                          ScrollChanged="OnRulerScrollChanged">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="120"/>  <!-- Match labels column -->
+                        <ColumnDefinition Width="*"/>    <!-- Timeline area -->
+                    </Grid.ColumnDefinitions>
+                    <!-- Empty space for alignment -->
+                    <Border Grid.Column="0" Width="120" Background="Transparent"/>
+                    <!-- Time ruler canvas -->
+                    <Canvas Grid.Column="1" x:Name="TimeRulerCanvas" Width="{Binding TimelineWidth}">
+                        <!-- Time markers will be drawn here programmatically -->
+                    </Canvas>
+                </Grid>
             </ScrollViewer>
         </Border>
 
         <!-- Scrollable Channel Grid -->
-        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="1" 
+                      VerticalScrollBarVisibility="Auto" 
+                      HorizontalScrollBarVisibility="Auto" 
+                      x:Name="TimelineScrollViewer"
+                      ScrollChanged="OnTimelineScrollChanged">
             <Grid x:Name="ChannelGrid">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="120"/>  <!-- Channel labels -->
@@ -151,6 +167,19 @@
                         </DataTemplate>
                     </ItemsControl.ItemTemplate>
                 </ItemsControl>
+                
+                <!-- Playhead Indicator: 1px black vertical line showing current time -->
+                <Canvas Grid.Column="1" x:Name="PlayheadCanvas" 
+                        Width="{Binding TimelineWidth}" 
+                        IsHitTestVisible="False"
+                        Background="Transparent">
+                    <Line x:Name="PlayheadLine"
+                          X1="0" Y1="0"
+                          X2="0" Y2="10000"
+                          Stroke="Black"
+                          StrokeThickness="1"
+                          Visibility="Collapsed"/>
+                </Canvas>
             </Grid>
         </ScrollViewer>
     </Grid>

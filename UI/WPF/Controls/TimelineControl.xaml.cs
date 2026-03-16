@@ -13,6 +13,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
     /// </summary>
     public partial class TimelineControl : UserControl
     {
+        private bool _isScrollingSynchronized = false;
+
         public TimelineControl()
         {
             InitializeComponent();
@@ -38,7 +40,25 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
             if (e.PropertyName == nameof(SignalManagerViewModel.ZoomLevel) ||
                 e.PropertyName == nameof(SignalManagerViewModel.TimelineWidth))
             {
+                System.Console.WriteLine($"[TIMELINE] {e.PropertyName} changed, redrawing ruler and playhead");
                 DrawTimeRuler();
+                UpdatePlayhead(); // Redraw playhead on zoom/width change
+            }
+            else if (e.PropertyName == nameof(SignalManagerViewModel.CurrentTimeSeconds))
+            {
+                UpdatePlayhead();
+            }
+            else if (e.PropertyName == nameof(SignalManagerViewModel.ExecutionStateText))
+            {
+                // Show playhead during playback, hide when stopped
+                var viewModel = DataContext as SignalManagerViewModel;
+                if (viewModel != null)
+                {
+                    bool isPlaying = viewModel.ExecutionStateText != "Idle" && viewModel.ExecutionStateText != "Stopped";
+                    var oldVisibility = PlayheadLine.Visibility;
+                    PlayheadLine.Visibility = isPlaying ? Visibility.Visible : Visibility.Collapsed;
+                    System.Console.WriteLine($"[PLAYHEAD VISIBILITY] State: {viewModel.ExecutionStateText}, IsPlaying: {isPlaying}, Visibility: {oldVisibility} → {PlayheadLine.Visibility}");
+                }
             }
         }
 
@@ -68,6 +88,111 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
         private void TimelineControl_Loaded(object sender, RoutedEventArgs e)
         {
             DrawTimeRuler();
+            UpdatePlayhead();
+        }
+
+        /// <summary>
+        /// Updates the playhead position based on current time
+        /// </summary>
+        private void UpdatePlayhead()
+        {
+            if (!(DataContext is SignalManagerViewModel viewModel))
+            {
+                System.Console.WriteLine($"[PLAYHEAD DEBUG] No viewModel, skipping update");
+                return;
+            }
+
+            double currentTime = viewModel.CurrentTimeSeconds;
+            double totalDuration = viewModel.TotalDurationSeconds;
+            double timelineWidth = viewModel.TimelineWidth;
+
+            System.Console.WriteLine($"[PLAYHEAD DEBUG] Current={currentTime:F6}s, Duration={totalDuration:F3}s, Width={timelineWidth:F0}px");
+
+            if (totalDuration <= 0 || timelineWidth <= 0)
+            {
+                System.Console.WriteLine($"[PLAYHEAD DEBUG] Invalid dimensions (Duration={totalDuration}, Width={timelineWidth}), skipping");
+                return;
+            }
+
+            // Calculate X position (percentage to pixels)
+            double percentage = (currentTime / totalDuration) * 100.0;
+            double x = (currentTime / totalDuration) * timelineWidth;
+
+            // Update playhead line position
+            var oldX1 = PlayheadLine.X1;
+            PlayheadLine.X1 = x;
+            PlayheadLine.X2 = x;
+            
+            // Detect which events playhead is crossing
+            DetectEventCrossing(viewModel, currentTime);
+
+            System.Console.WriteLine($"[PLAYHEAD UPDATE] Time={currentTime:F6}s ({percentage:F2}%) → X={x:F2}px (was {oldX1:F2}px) | Visibility={PlayheadLine.Visibility}");
+            System.Console.WriteLine($"[PLAYHEAD COORDS] X1={PlayheadLine.X1:F2}, X2={PlayheadLine.X2:F2}, Y1={PlayheadLine.Y1:F2}, Y2={PlayheadLine.Y2:F2}");
+            System.Console.WriteLine($"[PLAYHEAD STYLE] Stroke={PlayheadLine.Stroke}, Thickness={PlayheadLine.StrokeThickness}");
+        }
+
+        /// <summary>
+        /// Detects which events the playhead is currently crossing
+        /// </summary>
+        private void DetectEventCrossing(SignalManagerViewModel viewModel, double currentTime)
+        {
+            if (viewModel.SelectedSequence == null) return;
+
+            foreach (var channel in viewModel.TimelineChannels)
+            {
+                foreach (var eventVm in channel.Events)
+                {
+                    var evt = eventVm.SignalEvent;
+                    double startTime = evt.StartTime.TotalSeconds;
+                    double endTime = (evt.StartTime + evt.Duration).TotalSeconds;
+
+                    // Check if playhead is within this event
+                    if (currentTime >= startTime && currentTime <= endTime)
+                    {
+                        System.Console.WriteLine($"[PLAYHEAD CROSSING] Event: '{evt.Name}' on {channel.ChannelName} | Start={startTime:F3}s, End={endTime:F3}s, Current={currentTime:F3}s");
+                    }
+                    // Check if playhead just entered this event
+                    else if (currentTime >= startTime && currentTime < startTime + 0.1) // Within 100ms of start
+                    {
+                        System.Console.WriteLine($"[PLAYHEAD ENTER] ▶ Starting event '{evt.Name}' on {channel.ChannelName} at {startTime:F3}s");
+                    }
+                    // Check if playhead just exited this event
+                    else if (currentTime >= endTime && currentTime < endTime + 0.1) // Within 100ms of end
+                    {
+                        System.Console.WriteLine($"[PLAYHEAD EXIT] ◀ Finished event '{evt.Name}' on {channel.ChannelName} at {endTime:F3}s");
+                    }
+                }
+            }
+        }
+
+        /// <summary>
+        /// Synchronize ruler scroll when timeline scrolls horizontally
+        /// </summary>
+        private void OnTimelineScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_isScrollingSynchronized) return;
+
+            if (e.HorizontalChange != 0)
+            {
+                _isScrollingSynchronized = true;
+                RulerScrollViewer.ScrollToHorizontalOffset(e.HorizontalOffset);
+                _isScrollingSynchronized = false;
+            }
+        }
+
+        /// <summary>
+        /// Synchronize timeline scroll when ruler scrolls horizontally
+        /// </summary>
+        private void OnRulerScrollChanged(object sender, ScrollChangedEventArgs e)
+        {
+            if (_isScrollingSynchronized) return;
+
+            if (e.HorizontalChange != 0)
+            {
+                _isScrollingSynchronized = true;
+                TimelineScrollViewer.ScrollToHorizontalOffset(e.HorizontalOffset);
+                _isScrollingSynchronized = false;
+            }
         }
 
         private void DrawTimeRuler()
@@ -91,10 +216,33 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
             long intervalNs = CalculateIntervalNanoseconds(nanosecondsPerPixel);
             long subIntervalNs = intervalNs / 5; // 5 subdivisiones
 
-            System.Console.WriteLine($"[GRID] Total: {totalNanoseconds}ns, Width: {width}px, ns/px: {nanosecondsPerPixel:F2}, Interval: {intervalNs}ns");
+            System.Console.WriteLine($"[GRID] Total: {totalNanoseconds}ns, Width: {width}px, ns/px: {nanosecondsPerPixel:F2}, Interval: {intervalNs}ns ({intervalNs / 1e9:F2}s)");
 
-            // Dibujar marcadores desde 0 hasta totalNanoseconds
-            for (long t = 0; t <= totalNanoseconds; t += subIntervalNs)
+            // CRITICAL FIX: Dibujar marcador en tiempo 0 SIEMPRE, destacado en rojo
+            var zeroLine = new System.Windows.Shapes.Line
+            {
+                X1 = 0,
+                Y1 = 12,
+                X2 = 0,
+                Y2 = 30,
+                Stroke = Brushes.Red,
+                StrokeThickness = 2
+            };
+            TimeRulerCanvas.Children.Add(zeroLine);
+
+            var zeroText = new TextBlock
+            {
+                Text = "0.0s",
+                FontSize = 9,
+                Foreground = Brushes.Red,
+                FontWeight = FontWeights.Bold
+            };
+            Canvas.SetLeft(zeroText, 2);
+            Canvas.SetTop(zeroText, 0);
+            TimeRulerCanvas.Children.Add(zeroText);
+
+            // Dibujar resto de marcadores DESDE subIntervalNs (no desde 0, ya dibujado)
+            for (long t = subIntervalNs; t <= totalNanoseconds; t += subIntervalNs)
             {
                 var x = ((double)t / totalNanoseconds) * width;
                 bool isMajor = (t % intervalNs) == 0;
@@ -129,15 +277,24 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
 
         private long CalculateIntervalNanoseconds(double nanosecondsPerPixel)
         {
-            // Objetivo: ~100 pixels entre marcadores principales
-            double targetNanoseconds = nanosecondsPerPixel * 100;
+            // MEJORADO: Objetivo 60-80px entre marcadores principales (más denso y legible)
+            double targetNanoseconds = nanosecondsPerPixel * 70;
             
-            // Intervalos en nanosegundos (1ns, 2ns, 5ns, 10ns, ...)
+            // Intervalos más granulares para mejor UX
             long[] intervals = { 
-                1, 2, 5, 10, 20, 50, 100, 200, 500,  // nanosegundos
-                1_000, 2_000, 5_000, 10_000, 20_000, 50_000, 100_000, 200_000, 500_000,  // microsegundos
-                1_000_000, 2_000_000, 5_000_000, 10_000_000, 20_000_000, 50_000_000, 100_000_000, 200_000_000, 500_000_000,  // milisegundos
-                1_000_000_000, 2_000_000_000, 5_000_000_000, 10_000_000_000  // segundos
+                // Sub-milisegundo (para zoom muy alto)
+                100_000, 200_000, 500_000,           // 0.1ms, 0.2ms, 0.5ms
+                1_000_000, 2_000_000, 5_000_000,     // 1ms, 2ms, 5ms
+                10_000_000, 20_000_000, 50_000_000,  // 10ms, 20ms, 50ms
+                100_000_000, 200_000_000, 500_000_000, // 0.1s, 0.2s, 0.5s
+                
+                // Segundos (uso típico)
+                1_000_000_000,                       // 1s
+                2_000_000_000,                       // 2s
+                5_000_000_000,                       // 5s
+                10_000_000_000,                      // 10s
+                30_000_000_000,                      // 30s
+                60_000_000_000                       // 1min
             };
             
             foreach (var interval in intervals)
@@ -145,7 +302,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
                 if (interval >= targetNanoseconds)
                     return interval;
             }
-            return 10_000_000_000; // 10 segundos máximo
+            return 60_000_000_000; // 1 minuto máximo
         }
 
         private string FormatTimeNanoseconds(long nanoseconds)
@@ -162,10 +319,14 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
 
         private void OnChannelDragOver(object sender, DragEventArgs e)
         {
-            // Reduce log spam - only log errors
+            // Accept both Copy (from library) and Move (repositioning)
             if (e.Data.GetDataPresent(typeof(SignalEvent)))
             {
-                e.Effects = DragDropEffects.Copy;
+                bool isExistingEvent = e.Data.GetDataPresent("IsExistingEvent") && 
+                                       (bool)e.Data.GetData("IsExistingEvent");
+                
+                // Set appropriate effect
+                e.Effects = isExistingEvent ? DragDropEffects.Move : DragDropEffects.Copy;
                 e.Handled = true;
             }
             else
@@ -275,21 +436,44 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
         {
             if (e.LeftButton == MouseButtonState.Pressed && _draggedEvent != null)
             {
-                Point currentPosition = e.GetPosition(null);
-                Vector diff = _eventDragStartPoint - currentPosition;
-
-                // Only start drag if mouse moved enough (avoid accidental drags on click)
-                if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
-                    Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+                try
                 {
-                    System.Console.WriteLine($"[EVENT DRAG] Starting drag for: {_draggedEvent.SignalEvent.Name}");
+                    Point currentPosition = e.GetPosition(null);
+                    Vector diff = _eventDragStartPoint - currentPosition;
+
+                    // Only start drag if mouse moved enough (avoid accidental drags on click)
+                    if (Math.Abs(diff.X) > SystemParameters.MinimumHorizontalDragDistance ||
+                        Math.Abs(diff.Y) > SystemParameters.MinimumVerticalDragDistance)
+                    {
+                        System.Console.WriteLine($"[EVENT DRAG] Starting drag for: {_draggedEvent.SignalEvent.Name}");
+                        System.Console.WriteLine($"[EVENT DRAG] From: Channel {_draggedEvent.SignalEvent.Channel}, Start {_draggedEvent.SignalEvent.StartTime.TotalSeconds:F3}s");
+                        
+                        // Create data object with existing event
+                        var dataObject = new DataObject(typeof(SignalEvent), _draggedEvent.SignalEvent);
+                        dataObject.SetData("IsExistingEvent", true);
+                        
+                        // Store reference before clearing to avoid null reference
+                        var draggedEventRef = _draggedEvent;
+                        _draggedEvent = null; // Clear BEFORE DoDragDrop to avoid re-entry
+                        
+                        System.Console.WriteLine($"[EVENT DRAG] Initiating DoDragDrop with Move effect...");
+                        var result = DragDrop.DoDragDrop((DependencyObject)sender, dataObject, DragDropEffects.Move);
+                        System.Console.WriteLine($"[EVENT DRAG] DoDragDrop completed. Result: {result}");
+                        
+                        e.Handled = true;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    System.Console.WriteLine($"[EVENT DRAG ERROR] Exception during drag: {ex.Message}");
+                    System.Console.WriteLine($"[EVENT DRAG ERROR] Stack trace: {ex.StackTrace}");
+                    _draggedEvent = null; // Clean up on error
                     
-                    // Create data object with existing event
-                    var dataObject = new DataObject(typeof(SignalEvent), _draggedEvent.SignalEvent);
-                    dataObject.SetData("IsExistingEvent", true);
-                    
-                    DragDrop.DoDragDrop((DependencyObject)sender, dataObject, DragDropEffects.Move);
-                    _draggedEvent = null;
+                    MessageBox.Show(
+                        $"Error during drag operation: {ex.Message}\n\nPlease try again.",
+                        "Drag Error",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
                 }
             }
         }

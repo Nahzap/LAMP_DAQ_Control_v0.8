@@ -103,12 +103,19 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
             foreach (var existingEvent in Events)
             {
+                // CRITICAL: Skip checking against itself (for move operations)
+                if (existingEvent.SignalEvent.EventId == newEvent.EventId)
+                {
+                    continue;
+                }
+
                 var existingStart = existingEvent.SignalEvent.StartTime.TotalSeconds;
                 var existingEnd = (existingEvent.SignalEvent.StartTime + existingEvent.SignalEvent.Duration).TotalSeconds;
 
-                // Check for overlap
-                if (newStart < existingEnd && newEnd > existingStart)
+                // Check for overlap with tolerance (1ms)
+                if (newStart < existingEnd - 0.001 && newEnd > existingStart + 0.001)
                 {
+                    System.Console.WriteLine($"[CONFLICT] Event '{newEvent.Name}' ({newStart:F3}-{newEnd:F3}s) conflicts with '{existingEvent.SignalEvent.Name}' ({existingStart:F3}-{existingEnd:F3}s)");
                     return true;
                 }
             }
