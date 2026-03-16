@@ -105,7 +105,14 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     await HighPrecisionWaitAsync(remainingNs, _cts.Token);
                 }
                 
-                System.Console.WriteLine($"[DO EXEC ENGINE] Sequence duration completed: {_executionTimer.Elapsed.TotalSeconds:F3}s");
+                // CRITICAL: Stop playhead timer BEFORE setting final time to prevent overshoot
+                _playheadUpdateTimer?.Dispose();
+                _playheadUpdateTimer = null;
+                
+                // Set final time exactly to configured duration
+                CurrentTime = TimeSpan.FromTicks(_totalSequenceDurationNs / 100);
+                System.Console.WriteLine($"[DO EXEC ENGINE] Sequence duration completed: {_executionTimer.Elapsed.TotalSeconds:F3}s, CurrentTime set to {CurrentTime.TotalSeconds:F3}s");
+                
                 State = ExecutionState.Completed;
                 OnStateChanged(ExecutionState.Completed);
                 
@@ -156,31 +163,43 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         }
         
         /// <summary>
-        /// Executes events from table (cache-friendly linear scan)
+        /// Executes events from table with PARALLEL execution for events at the same time
+        /// CRITICAL: Events with identical start times must run in parallel for hardware synchronization
         /// </summary>
         private async Task ExecuteEventsAsync(SignalTable table, CancellationToken cancellationToken)
         {
-            // Iterate through contiguous arrays (cache-friendly)
-            for (int i = 0; i < table.Count; i++)
+            int i = 0;
+            while (i < table.Count && !cancellationToken.IsCancellationRequested)
             {
-                if (cancellationToken.IsCancellationRequested)
-                    break;
+                long currentGroupStartNs = table.StartTimesNs[i];
                 
-                long startNs = table.StartTimesNs[i];
-                long durationNs = table.DurationsNs[i];
-                
-                // PRECISION TIMING: Wait until event start time using high-precision wait
+                // PRECISION TIMING: Wait until this group's start time
                 long elapsedNs = (long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds);
-                long waitNs = startNs - elapsedNs;
+                long waitNs = currentGroupStartNs - elapsedNs;
                 
                 if (waitNs > 0)
                 {
-                    System.Console.WriteLine($"[DO TIMING] Event {i}: waiting {waitNs / 1e9:F6}s (elapsed: {elapsedNs / 1e9:F6}s, start: {startNs / 1e9:F6}s)");
+                    System.Console.WriteLine($"[DO TIMING] Group at {currentGroupStartNs / 1e9:F6}s: waiting {waitNs / 1e9:F6}s (elapsed: {elapsedNs / 1e9:F6}s)");
                     await HighPrecisionWaitAsync(waitNs, cancellationToken);
                 }
                 
-                // Execute event (ramps wait internally, so this is correct)
-                await ExecuteEventAtIndexAsync(table, i, cancellationToken);
+                // CRITICAL: Find ALL events that start at the same time (parallel group)
+                var parallelTasks = new List<Task>();
+                int groupStart = i;
+                
+                while (i < table.Count && table.StartTimesNs[i] == currentGroupStartNs)
+                {
+                    int eventIndex = i; // Capture for closure
+                    parallelTasks.Add(ExecuteEventAtIndexAsync(table, eventIndex, cancellationToken));
+                    i++;
+                }
+                
+                System.Console.WriteLine($"[DO PARALLEL] Launching {parallelTasks.Count} events in PARALLEL at {currentGroupStartNs / 1e9:F6}s");
+                
+                // CRITICAL: Execute ALL events in this time group IN PARALLEL
+                await Task.WhenAll(parallelTasks);
+                
+                System.Console.WriteLine($"[DO PARALLEL] Completed {parallelTasks.Count} parallel events");
             }
         }
         

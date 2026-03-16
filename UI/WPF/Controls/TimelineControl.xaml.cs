@@ -257,6 +257,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
                 StrokeThickness = 2
             };
             TimeRulerCanvas.Children.Add(zeroLine);
+            System.Console.WriteLine($"[RULER] Zero marker drawn at Canvas X=0 (TimeRulerCanvas width={width}px)");
 
             var zeroText = new TextBlock
             {
@@ -384,6 +385,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
                                    (bool)e.Data.GetData("IsExistingEvent");
 
             System.Console.WriteLine($"[DROP] Signal: {signalEvent.Name}, Type: {signalEvent.EventType}, IsExisting: {isExistingEvent}");
+            System.Console.WriteLine($"[DROP] EventId: {signalEvent.EventId}, Channel: {signalEvent.Channel}, Device: {signalEvent.DeviceModel}");
 
             var border = sender as Border;
             if (border == null)
@@ -400,17 +402,21 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
             }
             System.Console.WriteLine($"[DROP] Target channel: {channel.ChannelName} (Device: {channel.DeviceModel}, CH: {channel.ChannelNumber})");
 
-            // Calculate drop position
-            Point dropPosition = e.GetPosition(border);
-            double dropPercentage = dropPosition.X / border.ActualWidth;
-            System.Console.WriteLine($"[DROP] Drop position: X={dropPosition.X:F1}, Width={border.ActualWidth:F0}, Percentage={dropPercentage:F2}");
-
             var viewModel = DataContext as SignalManagerViewModel;
             if (viewModel == null)
             {
                 System.Console.WriteLine($"[DROP ERROR] ViewModel not found");
                 return;
             }
+
+            // Calculate drop position
+            Point dropPosition = e.GetPosition(border);
+            
+            // CRITICAL: Use TimelineWidth instead of ActualWidth for consistency with time markers
+            double timelineWidth = viewModel.TimelineWidth;
+            double dropPercentage = dropPosition.X / timelineWidth;
+            
+            System.Console.WriteLine($"[DROP] Drop position: X={dropPosition.X:F1}, Border.ActualWidth={border.ActualWidth:F0}, TimelineWidth={timelineWidth:F0}, Percentage={dropPercentage:F2}");
 
             // Calculate start time based on drop position
             double totalDurationSeconds = viewModel.TotalDurationSeconds;

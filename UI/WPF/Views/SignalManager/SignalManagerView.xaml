@@ -270,9 +270,9 @@
                                     <DataGridTextColumn Header="Channel" Binding="{Binding Channel}" Width="60"/>
                                     <DataGridTextColumn Header="Device" Binding="{Binding DeviceModel}" Width="80"/>
                                     <DataGridTextColumn Header="Type" Binding="{Binding EventType}" Width="80"/>
-                                    <DataGridTextColumn Header="Start (s)" Binding="{Binding StartTime.TotalSeconds, StringFormat=F3}" Width="80"/>
-                                    <DataGridTextColumn Header="Duration (s)" Binding="{Binding Duration.TotalSeconds, StringFormat=F3}" Width="90"/>
-                                    <DataGridTextColumn Header="End (s)" Binding="{Binding EndTime.TotalSeconds, StringFormat=F3}" Width="80"/>
+                                    <DataGridTextColumn Header="Start (s)" Binding="{Binding StartTime.TotalSeconds, Mode=OneWay, StringFormat=F3}" Width="80"/>
+                                    <DataGridTextColumn Header="Duration (s)" Binding="{Binding Duration.TotalSeconds, Mode=OneWay, StringFormat=F3}" Width="90"/>
+                                    <DataGridTextColumn Header="End (s)" Binding="{Binding EndTime.TotalSeconds, Mode=OneWay, StringFormat=F3}" Width="80"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Grid>

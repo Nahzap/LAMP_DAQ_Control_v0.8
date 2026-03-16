@@ -72,7 +72,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             DeviceType deviceType,
             string deviceModel,
             SignalEventType eventType,
-            string color = "#2ECC71")
+            string color = "#2ECC71",
+            Guid? eventId = null)
         {
             // Auto-resize if needed
             if (Count >= Capacity)
@@ -81,7 +82,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             }
             
             int index = Count;
-            Guid id = Guid.NewGuid();
+            Guid id = eventId ?? Guid.NewGuid(); // CRITICAL: Use provided ID or generate new
             
             // Insert into column vectors
             EventIds[index] = id;
@@ -161,17 +162,32 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         }
         
         /// <summary>
-        /// Updates timing for an event
+        /// Updates timing for event at index
         /// </summary>
-        public void UpdateTiming(int index, long startTimeNs, long durationNs)
+        public void UpdateTiming(int index, long newStartNs, long newDurationNs)
         {
             if (index < 0 || index >= Count)
-                throw new ArgumentOutOfRangeException(nameof(index));
+                return;
             
-            StartTimesNs[index] = startTimeNs;
-            DurationsNs[index] = durationNs;
+            StartTimesNs[index] = newStartNs;
+            DurationsNs[index] = newDurationNs;
             
-            System.Console.WriteLine($"[SIGNAL TABLE] Updated timing for '{Names[index]}': {startTimeNs / 1e9:F3}s, duration {durationNs / 1e9:F3}s");
+            System.Console.WriteLine($"[SIGNAL TABLE] Updated timing for '{Names[index]}': {newStartNs / 1e9:F3}s, duration {newDurationNs / 1e9:F3}s");
+        }
+        
+        /// <summary>
+        /// Updates channel and device info for event at index (for moving between channels)
+        /// </summary>
+        public void UpdateChannel(int index, int newChannel, DeviceType newDeviceType, string newDeviceModel)
+        {
+            if (index < 0 || index >= Count)
+                return;
+            
+            Channels[index] = newChannel;
+            DeviceTypes[index] = newDeviceType;
+            DeviceModels[index] = newDeviceModel;
+            
+            System.Console.WriteLine($"[SIGNAL TABLE] Updated channel for '{Names[index]}': CH{newChannel}, Device={newDeviceModel} ({newDeviceType})");
         }
         
         /// <summary>

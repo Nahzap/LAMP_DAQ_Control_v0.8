@@ -76,6 +76,13 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             if (table == null)
                 throw new InvalidOperationException($"Sequence {sequenceId} not found");
             
+            // CRITICAL: Parse EventId to preserve it when moving events
+            Guid? eventId = null;
+            if (!string.IsNullOrEmpty(evt.EventId) && Guid.TryParse(evt.EventId, out Guid parsedId))
+            {
+                eventId = parsedId;
+            }
+            
             // Convert TimeSpan to nanoseconds (1 tick = 100ns)
             int index = table.AddSignal(
                 evt.Name,
@@ -85,7 +92,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 evt.DeviceType,
                 evt.DeviceModel,
                 evt.EventType,
-                evt.Color
+                evt.Color,
+                eventId // CRITICAL: Pass existing ID to preserve it
             );
             
             // Store type-specific attributes
@@ -112,8 +120,11 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 return;
             }
             
-            // Update timing
+            // CRITICAL: Update timing
             table.UpdateTiming(index, updatedEvent.StartTime.Ticks * 100, updatedEvent.Duration.Ticks * 100);
+            
+            // CRITICAL: Update channel and device (for drag & drop between channels)
+            table.UpdateChannel(index, updatedEvent.Channel, updatedEvent.DeviceType, updatedEvent.DeviceModel);
             
             // Update attributes
             StoreAttributes(table, index, updatedEvent);
