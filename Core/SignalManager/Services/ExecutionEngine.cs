@@ -198,13 +198,15 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
                     System.Console.WriteLine($"[EXEC ENGINE] Loop enabled - restarting sequence '{_currentSequence.Name}'");
                     await Task.Delay(100); // Brief delay
                     
-                    // Reset timer and state
-                    _executionTimer.Restart();
-                    CurrentTime = TimeSpan.Zero;
-                    State = ExecutionState.Running;
+                    // CRITICAL: Reset state to Idle FIRST to allow re-execution
+                    State = ExecutionState.Idle;
+                    System.Console.WriteLine($"[EXEC ENGINE] State reset to Idle for loop restart");
                     
-                    // Re-execute the sequence recursively
-                    await ExecuteSequenceAsync(_currentSequence, _cts.Token);
+                    // Store sequence reference before cleanup
+                    var sequenceToLoop = _currentSequence;
+                    
+                    // Re-execute the sequence
+                    await ExecuteSequenceAsync(sequenceToLoop, cancellationToken);
                     return; // Exit here to avoid final cleanup
                 }
                 else
