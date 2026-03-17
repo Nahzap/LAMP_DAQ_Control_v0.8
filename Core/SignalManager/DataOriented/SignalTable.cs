@@ -116,9 +116,24 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             Guid removedId = EventIds[index];
             
             System.Console.WriteLine($"[SIGNAL TABLE] Removing '{Names[index]}' at index {index}");
+            System.Console.WriteLine($"[SIGNAL TABLE]   RemovedId: {removedId}");
+            System.Console.WriteLine($"[SIGNAL TABLE]   LastIndex: {lastIndex}, LastId: {EventIds[lastIndex]}, LastName: '{Names[lastIndex]}'");
+            
+            // Debug: Print _idToIndex state BEFORE removal
+            System.Console.WriteLine($"[SIGNAL TABLE] _idToIndex state BEFORE removal:");
+            for (int i = 0; i < Count; i++)
+            {
+                int dictIndex = _idToIndex.TryGetValue(EventIds[i], out int idx) ? idx : -999;
+                System.Console.WriteLine($"[SIGNAL TABLE]   [{i}] {Names[i]} | EventId: {EventIds[i]} | Dict maps to: {dictIndex} {(dictIndex == i ? "✓" : "❌ MISMATCH")}");
+            }
             
             if (index != lastIndex)
             {
+                Guid movedId = EventIds[lastIndex];
+                string movedName = Names[lastIndex];
+                
+                System.Console.WriteLine($"[SIGNAL TABLE] Swapping: Moving '{movedName}' (Id: {movedId}) from index {lastIndex} → {index}");
+                
                 // Swap with last element
                 EventIds[index] = EventIds[lastIndex];
                 StartTimesNs[index] = StartTimesNs[lastIndex];
@@ -131,7 +146,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 Colors[index] = Colors[lastIndex];
                 
                 // Update lookup index for moved element
-                _idToIndex[EventIds[index]] = index;
+                System.Console.WriteLine($"[SIGNAL TABLE] Updating _idToIndex[{movedId}]: {lastIndex} → {index}");
+                _idToIndex[movedId] = index;
                 
                 // Transfer attributes
                 Attributes.Swap(index, lastIndex);
@@ -139,8 +155,17 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             
             // Clear last slot
             Attributes.Clear(lastIndex);
+            System.Console.WriteLine($"[SIGNAL TABLE] Removing from _idToIndex: {removedId}");
             _idToIndex.Remove(removedId);
             Count--;
+            
+            // Debug: Print _idToIndex state AFTER removal
+            System.Console.WriteLine($"[SIGNAL TABLE] _idToIndex state AFTER removal (Count={Count}):");
+            for (int i = 0; i < Count; i++)
+            {
+                int dictIndex = _idToIndex.TryGetValue(EventIds[i], out int idx) ? idx : -999;
+                System.Console.WriteLine($"[SIGNAL TABLE]   [{i}] {Names[i]} | EventId: {EventIds[i]} | Dict maps to: {dictIndex} {(dictIndex == i ? "✓" : "❌ MISMATCH")}");
+            }
             
             System.Console.WriteLine($"[SIGNAL TABLE] Removed successfully (Count={Count})");
         }

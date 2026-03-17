@@ -256,8 +256,16 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 case SignalEventType.DC:
                     double voltage = table.Attributes.GetVoltage(index, 0);
                     System.Console.WriteLine($"[DO EXEC ENGINE] DC: {voltage}V for {durationNs / 1e9:F3}s");
+                    
+                    // Write voltage at START
                     controller.SetChannelValue(channel, voltage);
+                    
+                    // Wait for duration
                     await Task.Delay(TimeSpan.FromTicks(durationNs / 100), cancellationToken);
+                    
+                    // Write voltage at END to ensure channel stays at correct value
+                    controller.SetChannelValue(channel, voltage);
+                    System.Console.WriteLine($"[DO DC END] CH{channel} confirmed at {voltage}V");
                     break;
                 
                 case SignalEventType.Waveform:
