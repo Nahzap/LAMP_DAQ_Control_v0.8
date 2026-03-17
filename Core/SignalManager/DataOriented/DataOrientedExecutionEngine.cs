@@ -150,6 +150,21 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             catch (Exception ex)
             {
                 System.Console.WriteLine($"[DO EXEC ENGINE ERROR] {ex.Message}");
+                
+                // CRITICAL: Stop all signal generators on error to prevent hardware lock
+                System.Console.WriteLine("[DO EXEC ENGINE] Stopping all signal generators due to error...");
+                foreach (var controller in _deviceControllers.Values)
+                {
+                    try
+                    {
+                        controller.StopSignalGeneration();
+                    }
+                    catch (Exception stopEx)
+                    {
+                        System.Console.WriteLine($"[DO EXEC ENGINE ERROR] Failed to stop controller: {stopEx.Message}");
+                    }
+                }
+                
                 OnExecutionError(ex);
                 State = ExecutionState.Idle;
                 CurrentTime = TimeSpan.Zero;
@@ -243,8 +258,49 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 case SignalEventType.Waveform:
                     var (freq, amp, offset) = table.Attributes.GetWaveformParams(index);
                     System.Console.WriteLine($"[DO EXEC ENGINE] Waveform: {freq}Hz, {amp}V amp, {offset}V offset");
-                    // Implement waveform generation
-                    await Task.Delay(TimeSpan.FromTicks(durationNs / 100), cancellationToken);
+                    
+                    // Start signal generation (non-blocking - runs on background thread)
+                    controller.StartSignalGeneration(channel, freq, amp, offset);
+                    
+                    // Schedule stop after duration (non-blocking - allows parallelism)
+                    long stopTimeNs = table.StartTimesNs[index] + durationNs;
+                    int capturedChannel = channel; // Capture for closure
+                    _ = Task.Run(async () =>
+                    {
+                        try
+                        {
+                            // Wait until scheduled stop time
+                            while (!cancellationToken.IsCancellationRequested)
+                            {
+                                long elapsedNs = (long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds);
+                                long remainingNs = stopTimeNs - elapsedNs;
+                                
+                                if (remainingNs <= 0)
+                                {
+                                    // CRITICAL: Stop only THIS channel, not all channels
+                                    var signalGen = controller.GetSignalGenerator();
+                                    if (signalGen != null)
+                                    {
+                                        signalGen.StopChannel(capturedChannel);
+                                        System.Console.WriteLine($"[DO WAVEFORM STOP] {deviceModel} CH{capturedChannel} stopped at {stopTimeNs / 1e9:F3}s");
+                                    }
+                                    break;
+                                }
+                                
+                                await Task.Delay(10, cancellationToken); // Check every 10ms
+                            }
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            var signalGen = controller.GetSignalGenerator();
+                            if (signalGen != null)
+                            {
+                                signalGen.StopChannel(capturedChannel);
+                            }
+                        }
+                    }, cancellationToken);
+                    
+                    // Return immediately to allow parallel execution
                     break;
                 
                 case SignalEventType.DigitalPulse:

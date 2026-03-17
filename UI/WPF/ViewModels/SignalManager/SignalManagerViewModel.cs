@@ -178,6 +178,10 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                     OnPropertyChanged(nameof(SelectedEventStartVoltage));
                     OnPropertyChanged(nameof(SelectedEventEndVoltage));
                     OnPropertyChanged(nameof(SelectedEventHasRampVoltages));
+                    OnPropertyChanged(nameof(SelectedEventFrequency));
+                    OnPropertyChanged(nameof(SelectedEventAmplitude));
+                    OnPropertyChanged(nameof(SelectedEventOffset));
+                    OnPropertyChanged(nameof(SelectedEventHasWaveformParams));
                 }
             }
         }
@@ -279,6 +283,57 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         }
 
         public bool SelectedEventHasRampVoltages => SelectedEvent?.EventType == SignalEventType.Ramp;
+
+        // Waveform parameters (frequency, amplitude, offset)
+        public double SelectedEventFrequency
+        {
+            get => SelectedEvent?.Parameters.ContainsKey("frequency") == true 
+                   ? SelectedEvent.Parameters["frequency"] 
+                   : 1000;
+            set
+            {
+                if (SelectedEvent?.Parameters != null)
+                {
+                    SelectedEvent.Parameters["frequency"] = value;
+                    OnPropertyChanged();
+                    System.Console.WriteLine($"[PARAM CHANGE] frequency updated to {value}Hz for event '{SelectedEvent.Name}'");
+                }
+            }
+        }
+
+        public double SelectedEventAmplitude
+        {
+            get => SelectedEvent?.Parameters.ContainsKey("amplitude") == true 
+                   ? SelectedEvent.Parameters["amplitude"] 
+                   : 2.0;
+            set
+            {
+                if (SelectedEvent?.Parameters != null)
+                {
+                    SelectedEvent.Parameters["amplitude"] = value;
+                    OnPropertyChanged();
+                    System.Console.WriteLine($"[PARAM CHANGE] amplitude updated to {value}V for event '{SelectedEvent.Name}'");
+                }
+            }
+        }
+
+        public double SelectedEventOffset
+        {
+            get => SelectedEvent?.Parameters.ContainsKey("offset") == true 
+                   ? SelectedEvent.Parameters["offset"] 
+                   : 5.0;
+            set
+            {
+                if (SelectedEvent?.Parameters != null)
+                {
+                    SelectedEvent.Parameters["offset"] = value;
+                    OnPropertyChanged();
+                    System.Console.WriteLine($"[PARAM CHANGE] offset updated to {value}V for event '{SelectedEvent.Name}'");
+                }
+            }
+        }
+
+        public bool SelectedEventHasWaveformParams => SelectedEvent?.EventType == SignalEventType.Waveform;
 
         public string StatusText
         {
@@ -469,9 +524,18 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 return;
             }
 
-            // TODO: Implement DO-based Save
-            MessageBox.Show("Save sequence not yet implemented in DO mode", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
-            StatusText = "Save feature pending DO implementation";
+            try
+            {
+                string filePath = SelectedSequence.Metadata["FilePath"] as string;
+                Guid sequenceId = Guid.Parse(SelectedSequence.SequenceId);
+                _doManager.SaveSequence(sequenceId, filePath);
+                StatusText = $"Saved sequence '{SelectedSequence.Name}' to {filePath}";
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Failed to save sequence: {ex.Message}", "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                StatusText = "Save failed";
+            }
         }
 
         private void OnSaveSequenceAs()
@@ -487,9 +551,18 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
             if (dialog.ShowDialog() == true)
             {
-                // TODO: Implement DO-based Save As
-                MessageBox.Show("Save As not yet implemented in DO mode", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
-                StatusText = "Save As feature pending DO implementation";
+                try
+                {
+                    Guid sequenceId = Guid.Parse(SelectedSequence.SequenceId);
+                    _doManager.SaveSequence(sequenceId, dialog.FileName);
+                    SelectedSequence.Metadata["FilePath"] = dialog.FileName;
+                    StatusText = $"Saved sequence '{SelectedSequence.Name}' to {dialog.FileName}";
+                }
+                catch (Exception ex)
+                {
+                    MessageBox.Show($"Failed to save sequence: {ex.Message}", "Save Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    StatusText = "Save failed";
+                }
             }
         }
 
@@ -514,7 +587,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 return;
             }
 
-            System.Console.WriteLine($"[DELETE EVENT] Deleting: {SelectedEvent.Name} from channel {SelectedEvent.Channel}");
+            System.Console.WriteLine($"[DELETE EVENT CMD] OnDeleteEvent called for: {SelectedEvent.Name} (ID: {SelectedEvent.EventId})");
 
             var result = MessageBox.Show(
                 $"Delete event '{SelectedEvent.Name}' at {SelectedEvent.StartTime.TotalSeconds:F1}s?",
@@ -524,31 +597,23 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
             if (result == MessageBoxResult.Yes)
             {
-                // TODO: Remove from DO table
-                // _doManager.RemoveEvent(_currentSequenceId, eventIndex);
-
-                // Remove from timeline channel
-                var channel = TimelineChannels.FirstOrDefault(c => 
-                    c.ChannelNumber == SelectedEvent.Channel &&
-                    c.DeviceType == SelectedEvent.DeviceType);
-
-                if (channel != null)
+                System.Console.WriteLine($"[DELETE EVENT CMD] User confirmed deletion, calling DeleteEvent...");
+                
+                // Use the proper DeleteEvent method that removes from DO system
+                bool success = DeleteEvent(SelectedEvent.EventId);
+                
+                if (!success)
                 {
-                    var eventToRemove = channel.Events.FirstOrDefault(e => e.SignalEvent.EventId == SelectedEvent.EventId);
-                    if (eventToRemove != null)
-                    {
-                        channel.Events.Remove(eventToRemove);
-                        System.Console.WriteLine($"[DELETE EVENT SUCCESS] Event removed from timeline");
-                    }
+                    MessageBox.Show(
+                        "Failed to delete event. Please check the logs.",
+                        "Delete Failed",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
                 }
-
-                SelectedEvent = null;
-                SelectedTimelineEvent = null;
-                StatusText = $"Event deleted";
             }
             else
             {
-                System.Console.WriteLine("[DELETE EVENT] Cancelled by user");
+                System.Console.WriteLine("[DELETE EVENT CMD] Cancelled by user");
             }
         }
 
@@ -659,6 +724,14 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                         table.Attributes.SetEndVoltage(i, endV);
                         System.Console.WriteLine($"[APPLY CHANGES] Updated voltages: {startV}V → {endV}V");
                     }
+                    else if (SelectedEvent.EventType == SignalEventType.Waveform)
+                    {
+                        double freq = SelectedEvent.Parameters.ContainsKey("frequency") ? SelectedEvent.Parameters["frequency"] : 1000;
+                        double amp = SelectedEvent.Parameters.ContainsKey("amplitude") ? SelectedEvent.Parameters["amplitude"] : 2.0;
+                        double offset = SelectedEvent.Parameters.ContainsKey("offset") ? SelectedEvent.Parameters["offset"] : 5.0;
+                        table.Attributes.SetWaveformParams(i, freq, amp, offset);
+                        System.Console.WriteLine($"[APPLY CHANGES] Updated waveform: {freq}Hz, {amp}V amp, {offset}V offset");
+                    }
                     
                     System.Console.WriteLine($"[APPLY CHANGES] Successfully updated DO table at index {i}");
                     found = true;
@@ -741,6 +814,10 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             System.Console.WriteLine($"[UPDATE TIMELINE] Processing {events.Count} events from DO table for sequence '{SelectedSequence.Name}'");
             System.Console.WriteLine($"[UPDATE TIMELINE] Using grid duration: {TotalDurationSeconds}s ({TotalDurationNanoseconds}ns)");
 
+            // CRITICAL: Save current selection EventId BEFORE clearing ViewModels
+            string selectedEventId = SelectedTimelineEvent?.SignalEvent?.EventId;
+            System.Console.WriteLine($"[UPDATE TIMELINE] Current selection EventId: {selectedEventId ?? "null"}");
+
             // Update EventsList with all events from DO table
             EventsList.Clear();
             foreach (var evt in events.OrderBy(e => e.StartTime))
@@ -748,13 +825,22 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 EventsList.Add(evt);
             }
 
-            // Clear all events from timeline
+            // CRITICAL: Clear all events from timeline and force UI refresh
+            // This destroys old ViewModels - any references become STALE
             foreach (var channel in TimelineChannels)
             {
                 channel.ClearEvents();
             }
+            
+            // CRITICAL: Clear stale selections BEFORE recreating ViewModels
+            System.Console.WriteLine($"[UPDATE TIMELINE] Clearing stale ViewModel selections");
+            SelectedTimelineEvent = null;
+            SelectedEvent = null;
+            
+            // Force property changed to refresh binding
+            OnPropertyChanged(nameof(TimelineChannels));
 
-            // Add events to appropriate channels
+            // Add events to appropriate channels (creates NEW ViewModels)
             foreach (var evt in events)
             {
                 var targetChannel = TimelineChannels.FirstOrDefault(ch => 
@@ -766,6 +852,33 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 {
                     System.Console.WriteLine($"[UPDATE TIMELINE] Adding event '{evt.Name}' to channel {targetChannel.ChannelName} (Type: {targetChannel.DeviceType})");
                     targetChannel.AddEvent(evt, TotalDurationSeconds);
+                }
+            }
+
+            // OPTIONAL: Restore selection if event still exists in DO system
+            if (!string.IsNullOrEmpty(selectedEventId))
+            {
+                var stillExists = _currentAdapter.FindEventById(selectedEventId);
+                if (stillExists != null)
+                {
+                    System.Console.WriteLine($"[UPDATE TIMELINE] Re-selecting event {selectedEventId} after refresh");
+                    SelectedEvent = stillExists;
+                    
+                    // Find NEW ViewModel for this event
+                    foreach (var channel in TimelineChannels)
+                    {
+                        var eventVm = channel.Events.FirstOrDefault(e => e.SignalEvent.EventId == selectedEventId);
+                        if (eventVm != null)
+                        {
+                            SelectedTimelineEvent = eventVm;
+                            System.Console.WriteLine($"[UPDATE TIMELINE] Re-selected NEW ViewModel for {stillExists.Name}");
+                            break;
+                        }
+                    }
+                }
+                else
+                {
+                    System.Console.WriteLine($"[UPDATE TIMELINE] Previous selection {selectedEventId} no longer exists in DO system");
                 }
             }
 
@@ -1138,6 +1251,149 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             }
             
             return (true, "");
+        }
+
+        /// <summary>
+        /// Deletes an event from the current sequence
+        /// </summary>
+        public bool DeleteEvent(string eventId)
+        {
+            System.Console.WriteLine($"[DELETE EVENT] DeleteEvent called for EventId: {eventId}");
+            
+            if (SelectedSequence == null || _currentAdapter == null)
+            {
+                System.Console.WriteLine($"[DELETE EVENT ERROR] No sequence or adapter");
+                return false;
+            }
+
+            try
+            {
+                // Verify event exists before deletion
+                System.Console.WriteLine($"[DELETE EVENT] Count before: {_currentAdapter.Count}");
+                var eventToDelete = _currentAdapter.FindEventById(eventId);
+                if (eventToDelete == null)
+                {
+                    System.Console.WriteLine($"[DELETE EVENT ERROR] Event {eventId} not found in adapter");
+                    StatusText = $"Event not found for deletion";
+                    return false;
+                }
+                System.Console.WriteLine($"[DELETE EVENT] Found event: {eventToDelete.Name}");
+                
+                // Remove from DO system
+                System.Console.WriteLine($"[DELETE EVENT] Calling RemoveEvent on adapter...");
+                _currentAdapter.RemoveEvent(eventId);
+                System.Console.WriteLine($"[DELETE EVENT] Count after: {_currentAdapter.Count}");
+                
+                // Verify removal
+                var stillExists = _currentAdapter.FindEventById(eventId);
+                if (stillExists != null)
+                {
+                    System.Console.WriteLine($"[DELETE EVENT ERROR] Event still exists after RemoveEvent!");
+                    StatusText = $"Failed to delete event from DO system";
+                    return false;
+                }
+                System.Console.WriteLine($"[DELETE EVENT] Verified: event removed from DO system");
+                
+                // Clear selection
+                SelectedTimelineEvent = null;
+                SelectedEvent = null;
+                
+                // Refresh timeline to show changes
+                System.Console.WriteLine($"[DELETE EVENT] Calling UpdateTimeline to refresh UI...");
+                UpdateTimeline();
+                
+                StatusText = $"Event '{eventToDelete.Name}' deleted successfully";
+                System.Console.WriteLine($"[DELETE EVENT SUCCESS] Event completely removed");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"[DELETE EVENT ERROR] Exception: {ex.Message}");
+                System.Console.WriteLine($"[DELETE EVENT ERROR] Stack: {ex.StackTrace}");
+                StatusText = $"Failed to delete event: {ex.Message}";
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Duplicates an event by creating a copy offset by 100ms
+        /// </summary>
+        public bool DuplicateEvent(SignalEvent sourceEvent)
+        {
+            System.Console.WriteLine($"[DUPLICATE EVENT] DuplicateEvent called for: {sourceEvent.Name}");
+            
+            if (SelectedSequence == null || _currentAdapter == null)
+            {
+                System.Console.WriteLine($"[DUPLICATE EVENT ERROR] No sequence or adapter");
+                return false;
+            }
+
+            try
+            {
+                // Find target channel
+                var targetChannel = TimelineChannels.FirstOrDefault(ch =>
+                    ch.ChannelNumber == sourceEvent.Channel &&
+                    ch.DeviceType == sourceEvent.DeviceType &&
+                    ch.DeviceModel == sourceEvent.DeviceModel);
+
+                if (targetChannel == null)
+                {
+                    System.Console.WriteLine($"[DUPLICATE EVENT ERROR] Target channel not found");
+                    return false;
+                }
+
+                // Create duplicate with offset (100ms after original ends)
+                var duplicateEvent = new SignalEvent
+                {
+                    EventId = Guid.NewGuid().ToString(),
+                    Name = sourceEvent.Name + " (copy)",
+                    StartTime = sourceEvent.EndTime + TimeSpan.FromMilliseconds(100),
+                    Duration = sourceEvent.Duration,
+                    Channel = sourceEvent.Channel,
+                    DeviceType = sourceEvent.DeviceType,
+                    DeviceModel = sourceEvent.DeviceModel,
+                    EventType = sourceEvent.EventType,
+                    Parameters = new Dictionary<string, double>(sourceEvent.Parameters),
+                    Description = sourceEvent.Description,
+                    Color = sourceEvent.Color
+                };
+
+                System.Console.WriteLine($"[DUPLICATE EVENT] Created duplicate at {duplicateEvent.StartTime.TotalSeconds:F3}s");
+
+                // Check for conflicts
+                if (targetChannel.HasConflict(duplicateEvent))
+                {
+                    System.Console.WriteLine($"[DUPLICATE EVENT ERROR] Time conflict at proposed position");
+                    StatusText = "Cannot duplicate: Time conflict";
+                    return false;
+                }
+
+                // Validate event
+                if (!duplicateEvent.Validate(out string error))
+                {
+                    System.Console.WriteLine($"[DUPLICATE EVENT ERROR] Validation failed: {error}");
+                    StatusText = $"Cannot duplicate: {error}";
+                    return false;
+                }
+
+                // Add to DO system
+                System.Console.WriteLine($"[DUPLICATE EVENT] Adding to DO system...");
+                _currentAdapter.AddEvent(duplicateEvent);
+                System.Console.WriteLine($"[DUPLICATE EVENT] DO Count: {_currentAdapter.Count}");
+                
+                // Refresh timeline
+                UpdateTimeline();
+                
+                StatusText = $"Event duplicated successfully";
+                System.Console.WriteLine($"[DUPLICATE EVENT SUCCESS]");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"[DUPLICATE EVENT ERROR] Exception: {ex.Message}");
+                StatusText = $"Failed to duplicate event: {ex.Message}";
+                return false;
+            }
         }
 
         #endregion

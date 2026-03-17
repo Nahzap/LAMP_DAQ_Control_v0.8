@@ -127,6 +127,7 @@
     <Compile Include="Core\SignalManager\DataOriented\DataOrientedSequenceManager.cs" />
     <Compile Include="Core\SignalManager\DataOriented\SignalTableAdapter.cs" />
     <Compile Include="Core\SignalManager\DataOriented\DataOrientedExecutionEngine.cs" />
+    <Compile Include="Core\SignalManager\DataOriented\SequenceDTO.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <!-- Core DAQ Components -->

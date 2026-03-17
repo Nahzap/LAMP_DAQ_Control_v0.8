@@ -126,6 +126,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             // CRITICAL: Update channel and device (for drag & drop between channels)
             table.UpdateChannel(index, updatedEvent.Channel, updatedEvent.DeviceType, updatedEvent.DeviceModel);
             
+            // Update name and color
+            table.UpdateNameAndColor(index, updatedEvent.Name, updatedEvent.Color);
+            
             // Update attributes
             StoreAttributes(table, index, updatedEvent);
             
@@ -138,16 +141,31 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         /// </summary>
         public void RemoveSignal(Guid sequenceId, Guid eventId)
         {
+            System.Console.WriteLine($"[DO MANAGER] RemoveSignal called - SequenceId: {sequenceId}, EventId: {eventId}");
+            
             var table = GetSignalTable(sequenceId);
             if (table == null)
+            {
+                System.Console.WriteLine($"[DO MANAGER ERROR] Signal table not found for sequence {sequenceId}");
                 return;
+            }
+            
+            System.Console.WriteLine($"[DO MANAGER] Table Count before: {table.Count}");
             
             int index = table.FindIndex(eventId);
+            System.Console.WriteLine($"[DO MANAGER] FindIndex returned: {index}");
+            
             if (index >= 0)
             {
+                System.Console.WriteLine($"[DO MANAGER] Removing event at index {index}: {table.Names[index]}");
                 table.RemoveAt(index);
                 _sequences[sequenceId].Modified = DateTime.Now;
-                System.Console.WriteLine($"[DO MANAGER] Removed signal from sequence {sequenceId}");
+                System.Console.WriteLine($"[DO MANAGER] Table Count after: {table.Count}");
+                System.Console.WriteLine($"[DO MANAGER] Signal removed successfully from sequence {sequenceId}");
+            }
+            else
+            {
+                System.Console.WriteLine($"[DO MANAGER ERROR] Event {eventId} not found in table (FindIndex returned -1)");
             }
         }
         
@@ -212,6 +230,204 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         public List<Guid> GetAllSequenceIds()
         {
             return new List<Guid>(_sequences.Keys);
+        }
+        
+        /// <summary>
+        /// Calculates total duration of sequence
+        /// </summary>
+        public TimeSpan CalculateSequenceDuration(Guid sequenceId)
+        {
+            var table = GetSignalTable(sequenceId);
+            if (table == null)
+                return TimeSpan.Zero;
+            
+            long durationNs = SignalOperations.CalculateTotalDuration(table);
+            return TimeSpan.FromTicks(durationNs / 100);
+        }
+        
+        /// <summary>
+        /// Saves sequence to file (JSON serialization)
+        /// </summary>
+        public void SaveSequence(Guid sequenceId, string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("File path cannot be empty.", nameof(filePath));
+            
+            if (!_sequences.TryGetValue(sequenceId, out var data))
+                throw new InvalidOperationException($"Sequence {sequenceId} not found.");
+            
+            try
+            {
+                // Convert SignalTable to DTO
+                var dto = ConvertToDTO(data);
+                
+                // Serialize to JSON
+                var json = Newtonsoft.Json.JsonConvert.SerializeObject(dto, Newtonsoft.Json.Formatting.Indented);
+                System.IO.File.WriteAllText(filePath, json);
+                
+                System.Console.WriteLine($"[DO MANAGER] Saved sequence '{data.Name}' to {filePath}");
+            }
+            catch (Exception ex)
+            {
+                throw new System.IO.IOException($"Failed to save sequence to {filePath}", ex);
+            }
+        }
+        
+        /// <summary>
+        /// Loads sequence from file (JSON deserialization)
+        /// </summary>
+        public Guid LoadSequence(string filePath)
+        {
+            if (string.IsNullOrWhiteSpace(filePath))
+                throw new ArgumentException("File path cannot be empty.", nameof(filePath));
+            
+            if (!System.IO.File.Exists(filePath))
+                throw new System.IO.FileNotFoundException($"Sequence file not found: {filePath}");
+            
+            try
+            {
+                // Deserialize from JSON
+                var json = System.IO.File.ReadAllText(filePath);
+                var dto = Newtonsoft.Json.JsonConvert.DeserializeObject<SequenceDTO>(json);
+                
+                if (dto == null)
+                    throw new InvalidOperationException("Failed to deserialize sequence.");
+                
+                // Convert DTO to SequenceData
+                var data = ConvertFromDTO(dto);
+                
+                // Register loaded sequence
+                _sequences[data.SequenceId] = data;
+                
+                System.Console.WriteLine($"[DO MANAGER] Loaded sequence '{data.Name}' from {filePath}");
+                return data.SequenceId;
+            }
+            catch (Newtonsoft.Json.JsonException ex)
+            {
+                throw new InvalidOperationException($"Invalid sequence file format: {filePath}", ex);
+            }
+            catch (Exception ex)
+            {
+                throw new System.IO.IOException($"Failed to load sequence from {filePath}", ex);
+            }
+        }
+        
+        /// <summary>
+        /// Converts SequenceData to DTO for serialization
+        /// </summary>
+        private SequenceDTO ConvertToDTO(SequenceData data)
+        {
+            var dto = new SequenceDTO
+            {
+                SequenceId = data.SequenceId,
+                Name = data.Name,
+                Description = data.Description,
+                Created = data.Created,
+                Modified = data.Modified
+            };
+            
+            // Convert each event in SignalTable to DTO
+            var table = data.SignalTable;
+            for (int i = 0; i < table.Count; i++)
+            {
+                var eventDto = new SignalEventDTO
+                {
+                    EventId = table.EventIds[i].ToString(),
+                    Name = table.Names[i],
+                    StartTimeNs = table.StartTimesNs[i],
+                    DurationNs = table.DurationsNs[i],
+                    Channel = table.Channels[i],
+                    DeviceType = table.DeviceTypes[i],
+                    DeviceModel = table.DeviceModels[i],
+                    EventType = table.EventTypes[i],
+                    Color = table.Colors[i]
+                };
+                
+                // Extract attributes based on event type
+                switch (table.EventTypes[i])
+                {
+                    case SignalEventType.DC:
+                        eventDto.Parameters["voltage"] = table.Attributes.GetVoltage(i);
+                        break;
+                    
+                    case SignalEventType.Ramp:
+                        eventDto.Parameters["startVoltage"] = table.Attributes.GetStartVoltage(i);
+                        eventDto.Parameters["endVoltage"] = table.Attributes.GetEndVoltage(i);
+                        break;
+                    
+                    case SignalEventType.Waveform:
+                        var (freq, amp, offset) = table.Attributes.GetWaveformParams(i);
+                        eventDto.Parameters["frequency"] = freq;
+                        eventDto.Parameters["amplitude"] = amp;
+                        eventDto.Parameters["offset"] = offset;
+                        break;
+                }
+                
+                dto.Events.Add(eventDto);
+            }
+            
+            return dto;
+        }
+        
+        /// <summary>
+        /// Converts DTO to SequenceData for deserialization
+        /// </summary>
+        private SequenceData ConvertFromDTO(SequenceDTO dto)
+        {
+            var data = new SequenceData
+            {
+                SequenceId = dto.SequenceId,
+                Name = dto.Name,
+                Description = dto.Description,
+                Created = dto.Created,
+                Modified = dto.Modified,
+                SignalTable = new SignalTable(Math.Max(64, dto.Events.Count * 2))
+            };
+            
+            // Add each event to the SignalTable
+            foreach (var eventDto in dto.Events)
+            {
+                Guid eventId = Guid.Parse(eventDto.EventId);
+                
+                int index = data.SignalTable.AddSignal(
+                    eventDto.Name,
+                    eventDto.StartTimeNs,
+                    eventDto.DurationNs,
+                    eventDto.Channel,
+                    eventDto.DeviceType,
+                    eventDto.DeviceModel,
+                    eventDto.EventType,
+                    eventDto.Color,
+                    eventId
+                );
+                
+                // Restore attributes based on event type
+                switch (eventDto.EventType)
+                {
+                    case SignalEventType.DC:
+                        if (eventDto.Parameters.TryGetValue("voltage", out double v))
+                            data.SignalTable.Attributes.SetVoltage(index, v);
+                        break;
+                    
+                    case SignalEventType.Ramp:
+                        if (eventDto.Parameters.TryGetValue("startVoltage", out double sv))
+                            data.SignalTable.Attributes.SetStartVoltage(index, sv);
+                        if (eventDto.Parameters.TryGetValue("endVoltage", out double ev))
+                            data.SignalTable.Attributes.SetEndVoltage(index, ev);
+                        break;
+                    
+                    case SignalEventType.Waveform:
+                        if (eventDto.Parameters.TryGetValue("frequency", out double f) &&
+                            eventDto.Parameters.TryGetValue("amplitude", out double a) &&
+                            eventDto.Parameters.TryGetValue("offset", out double o))
+                        {
+                            data.SignalTable.Attributes.SetWaveformParams(index, f, a, o);
+                        }
+                        break;
+                }
+            }
+            
+            return data;
         }
         
         /// <summary>

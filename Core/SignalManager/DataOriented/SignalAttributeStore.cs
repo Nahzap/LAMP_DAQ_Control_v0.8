@@ -6,9 +6,12 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
     /// <summary>
     /// Sparse storage for optional signal attributes by event type.
     /// Uses dictionaries to avoid wasting memory on unused attributes.
+    /// THREAD-SAFE: All operations are protected with locks for parallel execution.
     /// </summary>
     public class SignalAttributeStore
     {
+        private readonly object _lock = new object();
+        
         // Ramp attributes
         private Dictionary<int, double> _startVoltages;
         private Dictionary<int, double> _endVoltages;
@@ -36,51 +39,75 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         
         public void SetStartVoltage(int index, double voltage)
         {
-            _startVoltages[index] = voltage;
+            lock (_lock)
+            {
+                _startVoltages[index] = voltage;
+            }
         }
         
         public double GetStartVoltage(int index, double defaultValue = 0)
         {
-            return _startVoltages.TryGetValue(index, out double val) ? val : defaultValue;
+            lock (_lock)
+            {
+                return _startVoltages.TryGetValue(index, out double val) ? val : defaultValue;
+            }
         }
         
         public void SetEndVoltage(int index, double voltage)
         {
-            _endVoltages[index] = voltage;
+            lock (_lock)
+            {
+                _endVoltages[index] = voltage;
+            }
         }
         
         public double GetEndVoltage(int index, double defaultValue = 0)
         {
-            return _endVoltages.TryGetValue(index, out double val) ? val : defaultValue;
+            lock (_lock)
+            {
+                return _endVoltages.TryGetValue(index, out double value) ? value : defaultValue;
+            }
         }
         
         // === DC ATTRIBUTES ===
         
         public void SetVoltage(int index, double voltage)
         {
-            _voltages[index] = voltage;
+            lock (_lock)
+            {
+                _voltages[index] = voltage;
+            }
         }
         
         public double GetVoltage(int index, double defaultValue = 0)
         {
-            return _voltages.TryGetValue(index, out double val) ? val : defaultValue;
+            lock (_lock)
+            {
+                return _voltages.TryGetValue(index, out double val) ? val : defaultValue;
+            }
         }
         
         // === WAVEFORM ATTRIBUTES ===
         
-        public void SetWaveformParams(int index, double freq, double amp, double offset)
+        public void SetWaveformParams(int index, double frequency, double amplitude, double offset)
         {
-            _frequencies[index] = freq;
-            _amplitudes[index] = amp;
-            _offsets[index] = offset;
+            lock (_lock)
+            {
+                _frequencies[index] = frequency;
+                _amplitudes[index] = amplitude;
+                _offsets[index] = offset;
+            }
         }
         
         public (double freq, double amp, double offset) GetWaveformParams(int index)
         {
-            double freq = _frequencies.TryGetValue(index, out double f) ? f : 0;
-            double amp = _amplitudes.TryGetValue(index, out double a) ? a : 0;
-            double offset = _offsets.TryGetValue(index, out double o) ? o : 0;
-            return (freq, amp, offset);
+            lock (_lock)
+            {
+                double freq = _frequencies.TryGetValue(index, out double f) ? f : 0;
+                double amp = _amplitudes.TryGetValue(index, out double a) ? a : 0;
+                double offset = _offsets.TryGetValue(index, out double o) ? o : 0;
+                return (freq, amp, offset);
+            }
         }
         
         // === UTILITY ===

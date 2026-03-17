@@ -76,12 +76,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 return false;
             }
 
-            System.Console.WriteLine($"[RENDER] Creating TimelineEventViewModel: TotalDuration={totalDurationSeconds}s");
             var eventVm = new TimelineEventViewModel(signalEvent, totalDurationSeconds);
-            System.Console.WriteLine($"[RENDER] Event created: Left={eventVm.LeftPosition:F2}%, Width={eventVm.Width:F2}%, Color={eventVm.Color}");
-            System.Console.WriteLine($"[RENDER] Adding to Events collection. Current count: {Events.Count}");
             Events.Add(eventVm);
-            System.Console.WriteLine($"[RENDER] Event added. New count: {Events.Count}");
+            System.Console.WriteLine($"[RENDER] '{signalEvent.Name}' → {eventVm.LeftPosition:F1}% (w={eventVm.Width:F1}%)");
             return true;
         }
 
@@ -141,12 +138,15 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         private double _leftPosition;
         private double _width;
         private string _displayText;
+        private int _zIndex;
 
         public TimelineEventViewModel(SignalEvent signalEvent, double totalDurationSeconds)
         {
             _signalEvent = signalEvent;
             CalculatePosition(totalDurationSeconds);
             UpdateDisplayText();
+            // Z-Index based on start time - earlier events have lower Z-Index (rendered below)
+            _zIndex = (int)(signalEvent.StartTime.TotalMilliseconds / 10); // 10ms granularity
         }
 
         public SignalEvent SignalEvent
@@ -181,6 +181,12 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
         public string Color => _signalEvent.Color ?? "#4A90E2";
 
+        public int ZIndex
+        {
+            get => _zIndex;
+            set => SetProperty(ref _zIndex, value);
+        }
+
         private void CalculatePosition(double totalDurationSeconds)
         {
             if (totalDurationSeconds <= 0) totalDurationSeconds = 1;
@@ -188,8 +194,6 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             // Calculate percentage positions (0-100)
             LeftPosition = (_signalEvent.StartTime.TotalSeconds / totalDurationSeconds) * 100.0;
             Width = (_signalEvent.Duration.TotalSeconds / totalDurationSeconds) * 100.0;
-            
-            System.Console.WriteLine($"[CALC POS] Event '{_signalEvent.Name}': StartTime={_signalEvent.StartTime.TotalSeconds:F6}s, Duration={_signalEvent.Duration.TotalSeconds:F6}s, TotalGrid={totalDurationSeconds}s → Left={LeftPosition:F4}%, Width={Width:F4}%");
         }
 
         private void UpdateDisplayText()
@@ -201,6 +205,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         public void RecalculatePosition(double totalDurationSeconds)
         {
             CalculatePosition(totalDurationSeconds);
+            // Recalculate Z-Index as well
+            ZIndex = (int)(_signalEvent.StartTime.TotalMilliseconds / 10);
         }
     }
 }

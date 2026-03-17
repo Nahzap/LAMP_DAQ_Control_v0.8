@@ -271,6 +271,15 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
                 _signalGenerator.Stop();
             }
         }
+        
+        /// <summary>
+        /// Gets the signal generator for granular control (e.g., stopping specific channels)
+        /// </summary>
+        public ISignalGenerator GetSignalGenerator()
+        {
+            EnsureNotDisposed();
+            return _signalGenerator;
+        }
         #endregion
         
         #region Digital I/O Methods

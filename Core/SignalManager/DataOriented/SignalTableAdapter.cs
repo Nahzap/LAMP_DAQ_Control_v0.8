@@ -129,10 +129,20 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         /// </summary>
         public void RemoveEvent(string eventId)
         {
-            if (Guid.TryParse(eventId, out Guid guid))
+            System.Console.WriteLine($"[ADAPTER] RemoveEvent called with EventId: {eventId}");
+            
+            if (!Guid.TryParse(eventId, out Guid guid))
             {
-                _manager.RemoveSignal(_sequenceId, guid);
+                System.Console.WriteLine($"[ADAPTER ERROR] Failed to parse EventId as Guid: {eventId}");
+                return;
             }
+            
+            System.Console.WriteLine($"[ADAPTER] Parsed Guid: {guid}");
+            System.Console.WriteLine($"[ADAPTER] Count before removal: {_table.Count}");
+            
+            _manager.RemoveSignal(_sequenceId, guid);
+            
+            System.Console.WriteLine($"[ADAPTER] Count after removal: {_table.Count}");
         }
         
         /// <summary>

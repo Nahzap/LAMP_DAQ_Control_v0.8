@@ -191,6 +191,20 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         }
         
         /// <summary>
+        /// Updates name and color for event at index
+        /// </summary>
+        public void UpdateNameAndColor(int index, string newName, string newColor)
+        {
+            if (index < 0 || index >= Count)
+                return;
+            
+            Names[index] = newName;
+            Colors[index] = newColor;
+            
+            System.Console.WriteLine($"[SIGNAL TABLE] Updated name to '{newName}' at index {index}");
+        }
+        
+        /// <summary>
         /// Clears all events
         /// </summary>
         public void Clear()

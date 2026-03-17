@@ -78,6 +78,90 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Models
         /// </summary>
         public TimeSpan EndTime => StartTime + Duration;
 
+        // Display properties for Events List table
+        public string FrequencyDisplay
+        {
+            get
+            {
+                if (EventType == SignalEventType.Waveform && Parameters.ContainsKey("frequency"))
+                    return $"{Parameters["frequency"]:F0}";
+                return "N/A";
+            }
+        }
+
+        public string AmplitudeDisplay
+        {
+            get
+            {
+                if (EventType == SignalEventType.Waveform && Parameters.ContainsKey("amplitude"))
+                    return $"{Parameters["amplitude"]:F2}";
+                return "N/A";
+            }
+        }
+
+        public string OffsetDisplay
+        {
+            get
+            {
+                if (EventType == SignalEventType.Waveform && Parameters.ContainsKey("offset"))
+                    return $"{Parameters["offset"]:F2}";
+                return "N/A";
+            }
+        }
+
+        public string VminDisplay
+        {
+            get
+            {
+                if (EventType == SignalEventType.Waveform && 
+                    Parameters.ContainsKey("amplitude") && 
+                    Parameters.ContainsKey("offset"))
+                {
+                    double vmin = Parameters["offset"] - Parameters["amplitude"];
+                    return $"{vmin:F2}";
+                }
+                else if (EventType == SignalEventType.Ramp && Parameters.ContainsKey("startVoltage") && Parameters.ContainsKey("endVoltage"))
+                {
+                    double vmin = Math.Min(Parameters["startVoltage"], Parameters["endVoltage"]);
+                    return $"{vmin:F2}";
+                }
+                else if (EventType == SignalEventType.DC && Parameters.ContainsKey("voltage"))
+                {
+                    return $"{Parameters["voltage"]:F2}";
+                }
+                return "N/A";
+            }
+        }
+
+        public string VmaxDisplay
+        {
+            get
+            {
+                if (EventType == SignalEventType.Waveform && 
+                    Parameters.ContainsKey("amplitude") && 
+                    Parameters.ContainsKey("offset"))
+                {
+                    double vmax = Parameters["offset"] + Parameters["amplitude"];
+                    return $"{vmax:F2}";
+                }
+                else if (EventType == SignalEventType.Ramp && Parameters.ContainsKey("startVoltage") && Parameters.ContainsKey("endVoltage"))
+                {
+                    double vmax = Math.Max(Parameters["startVoltage"], Parameters["endVoltage"]);
+                    return $"{vmax:F2}";
+                }
+                else if (EventType == SignalEventType.DC && Parameters.ContainsKey("voltage"))
+                {
+                    return $"{Parameters["voltage"]:F2}";
+                }
+                return "N/A";
+            }
+        }
+
+        public override string ToString()
+        {
+            return $"{Name} @ {StartTime.TotalSeconds:F1}s ({EventType})";
+        }
+
         /// <summary>
         /// Validates this event
         /// </summary>
@@ -135,6 +219,39 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Models
                     {
                         errorMessage = "Frequency must be > 0.";
                         return false;
+                    }
+                    
+                    // CRITICAL: Validate amplitude + offset doesn't exceed 10V for analog devices
+                    if (DeviceType == DeviceType.Analog)
+                    {
+                        double amplitude = Parameters["amplitude"];
+                        double offset = Parameters.ContainsKey("offset") ? Parameters["offset"] : 0.0;
+                        
+                        if (amplitude < 0 || amplitude > 10)
+                        {
+                            errorMessage = "Amplitude must be 0-10V for analog devices.";
+                            return false;
+                        }
+                        
+                        if (offset < 0 || offset > 10)
+                        {
+                            errorMessage = "Offset must be 0-10V for analog devices.";
+                            return false;
+                        }
+                        
+                        // Check that peak voltage (offset + amplitude) doesn't exceed 10V
+                        if (offset + amplitude > 10.0)
+                        {
+                            errorMessage = $"Peak voltage (offset {offset:F2}V + amplitude {amplitude:F2}V = {offset + amplitude:F2}V) exceeds maximum 10V for analog devices.";
+                            return false;
+                        }
+                        
+                        // Check that trough voltage (offset - amplitude) doesn't go below 0V
+                        if (offset - amplitude < 0.0)
+                        {
+                            errorMessage = $"Trough voltage (offset {offset:F2}V - amplitude {amplitude:F2}V = {offset - amplitude:F2}V) is below minimum 0V for analog devices.";
+                            return false;
+                        }
                     }
                     break;
             }

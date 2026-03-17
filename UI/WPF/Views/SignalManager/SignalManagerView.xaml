@@ -225,6 +225,27 @@
                                      Margin="0,0,0,10"
                                      Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
+                            <!-- Frequency for Waveform events -->
+                            <TextBlock Text="Frequency (Hz):" FontWeight="Bold" Margin="0,0,0,5"
+                                       Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <TextBox Text="{Binding SelectedEventFrequency, UpdateSourceTrigger=PropertyChanged}" 
+                                     Margin="0,0,0,10"
+                                     Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                            <!-- Amplitude for Waveform events -->
+                            <TextBlock Text="Amplitude (V):" FontWeight="Bold" Margin="0,0,0,5"
+                                       Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <TextBox Text="{Binding SelectedEventAmplitude, UpdateSourceTrigger=PropertyChanged}" 
+                                     Margin="0,0,0,10"
+                                     Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                            <!-- Offset for Waveform events -->
+                            <TextBlock Text="Offset DC (V):" FontWeight="Bold" Margin="0,0,0,5"
+                                       Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                            <TextBox Text="{Binding SelectedEventOffset, UpdateSourceTrigger=PropertyChanged}" 
+                                     Margin="0,0,0,10"
+                                     Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
                             <TextBlock Text="Description:" FontWeight="Bold" Margin="0,0,0,5"/>
                             <TextBox Text="{Binding SelectedEvent.Description, UpdateSourceTrigger=PropertyChanged}" 
                                      TextWrapping="Wrap" 
@@ -266,13 +287,18 @@
                                       SelectedItem="{Binding SelectedEventFromList, Mode=TwoWay}"
                                       Margin="10">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="*"/>
-                                    <DataGridTextColumn Header="Channel" Binding="{Binding Channel}" Width="60"/>
-                                    <DataGridTextColumn Header="Device" Binding="{Binding DeviceModel}" Width="80"/>
-                                    <DataGridTextColumn Header="Type" Binding="{Binding EventType}" Width="80"/>
-                                    <DataGridTextColumn Header="Start (s)" Binding="{Binding StartTime.TotalSeconds, Mode=OneWay, StringFormat=F3}" Width="80"/>
-                                    <DataGridTextColumn Header="Duration (s)" Binding="{Binding Duration.TotalSeconds, Mode=OneWay, StringFormat=F3}" Width="90"/>
-                                    <DataGridTextColumn Header="End (s)" Binding="{Binding EndTime.TotalSeconds, Mode=OneWay, StringFormat=F3}" Width="80"/>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="90"/>
+                                    <DataGridTextColumn Header="Ch" Binding="{Binding Channel}" Width="35"/>
+                                    <DataGridTextColumn Header="Device" Binding="{Binding DeviceModel}" Width="70"/>
+                                    <DataGridTextColumn Header="Type" Binding="{Binding EventType}" Width="65"/>
+                                    <DataGridTextColumn Header="Start" Binding="{Binding StartTime.TotalSeconds, Mode=OneWay, StringFormat=F3}" Width="55"/>
+                                    <DataGridTextColumn Header="Dur." Binding="{Binding Duration.TotalSeconds, Mode=OneWay, StringFormat=F3}" Width="50"/>
+                                    <DataGridTextColumn Header="End" Binding="{Binding EndTime.TotalSeconds, Mode=OneWay, StringFormat=F3}" Width="55"/>
+                                    <DataGridTextColumn Header="Freq(Hz)" Binding="{Binding FrequencyDisplay}" Width="65"/>
+                                    <DataGridTextColumn Header="Amp(V)" Binding="{Binding AmplitudeDisplay}" Width="60"/>
+                                    <DataGridTextColumn Header="Offset(V)" Binding="{Binding OffsetDisplay}" Width="65"/>
+                                    <DataGridTextColumn Header="Vmin(V)" Binding="{Binding VminDisplay}" Width="60"/>
+                                    <DataGridTextColumn Header="Vmax(V)" Binding="{Binding VmaxDisplay}" Width="60"/>
                                 </DataGrid.Columns>
                             </DataGrid>
                         </Grid>

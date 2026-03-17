@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -14,6 +15,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
     public partial class TimelineControl : UserControl
     {
         private bool _isScrollingSynchronized = false;
+        private System.Collections.Generic.HashSet<string> _activeEvents = new System.Collections.Generic.HashSet<string>();
 
         public TimelineControl()
         {
@@ -122,11 +124,12 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
         /// <summary>
         /// Updates the playhead position based on current time
         /// </summary>
+        private int _playheadUpdateCount = 0;
+        
         private void UpdatePlayhead()
         {
             if (!(DataContext is SignalManagerViewModel viewModel))
             {
-                System.Console.WriteLine($"[PLAYHEAD DEBUG] No viewModel, skipping update");
                 return;
             }
 
@@ -134,29 +137,29 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
             double totalDuration = viewModel.TotalDurationSeconds;
             double timelineWidth = viewModel.TimelineWidth;
 
-            System.Console.WriteLine($"[PLAYHEAD DEBUG] Current={currentTime:F6}s, Duration={totalDuration:F3}s, Width={timelineWidth:F0}px");
-
             if (totalDuration <= 0 || timelineWidth <= 0)
             {
-                System.Console.WriteLine($"[PLAYHEAD DEBUG] Invalid dimensions (Duration={totalDuration}, Width={timelineWidth}), skipping");
                 return;
             }
 
-            // Calculate X position (percentage to pixels)
             double percentage = (currentTime / totalDuration) * 100.0;
             double x = (currentTime / totalDuration) * timelineWidth;
 
-            // Update playhead line position
-            var oldX1 = PlayheadLine.X1;
+            double oldX1 = PlayheadLine.X1;
             PlayheadLine.X1 = x;
             PlayheadLine.X2 = x;
-            
+            PlayheadLine.Y1 = 0;
+            PlayheadLine.Y2 = 10000;
+
             // Detect which events playhead is crossing
             DetectEventCrossing(viewModel, currentTime);
 
-            System.Console.WriteLine($"[PLAYHEAD UPDATE] Time={currentTime:F6}s ({percentage:F2}%) → X={x:F2}px (was {oldX1:F2}px) | Visibility={PlayheadLine.Visibility}");
-            System.Console.WriteLine($"[PLAYHEAD COORDS] X1={PlayheadLine.X1:F2}, X2={PlayheadLine.X2:F2}, Y1={PlayheadLine.Y1:F2}, Y2={PlayheadLine.Y2:F2}");
-            System.Console.WriteLine($"[PLAYHEAD STYLE] Stroke={PlayheadLine.Stroke}, Thickness={PlayheadLine.StrokeThickness}");
+            // COMPRESSED LOGGING: Solo cada 10 updates (~300ms) para reducir spam
+            _playheadUpdateCount++;
+            if (_playheadUpdateCount % 10 == 0)
+            {
+                System.Console.WriteLine($"[PLAYHEAD] t={currentTime:F3}s ({percentage:F1}%) X={x:F1}px");
+            }
         }
 
         /// <summary>
@@ -164,30 +167,25 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
         /// </summary>
         private void DetectEventCrossing(SignalManagerViewModel viewModel, double currentTime)
         {
-            if (viewModel.SelectedSequence == null) return;
-
             foreach (var channel in viewModel.TimelineChannels)
             {
                 foreach (var eventVm in channel.Events)
                 {
-                    var evt = eventVm.SignalEvent;
-                    double startTime = evt.StartTime.TotalSeconds;
-                    double endTime = (evt.StartTime + evt.Duration).TotalSeconds;
+                    double eventStart = eventVm.SignalEvent.StartTime.TotalSeconds;
+                    double eventEnd = (eventVm.SignalEvent.StartTime + eventVm.SignalEvent.Duration).TotalSeconds;
 
-                    // Check if playhead is within this event
-                    if (currentTime >= startTime && currentTime <= endTime)
+                    // Detect when playhead ENTERS an event (first frame inside)
+                    if (currentTime >= eventStart && currentTime < eventStart + 0.1 && !_activeEvents.Contains(eventVm.SignalEvent.EventId))
                     {
-                        System.Console.WriteLine($"[PLAYHEAD CROSSING] Event: '{evt.Name}' on {channel.ChannelName} | Start={startTime:F3}s, End={endTime:F3}s, Current={currentTime:F3}s");
+                        _activeEvents.Add(eventVm.SignalEvent.EventId);
+                        System.Console.WriteLine($"[PLAYHEAD ENTER] ▶ '{eventVm.SignalEvent.Name}' on {channel.ChannelName} @ {eventStart:F3}s");
                     }
-                    // Check if playhead just entered this event
-                    else if (currentTime >= startTime && currentTime < startTime + 0.1) // Within 100ms of start
+
+                    // Detect when playhead EXITS an event (first frame after)
+                    if (currentTime > eventEnd && _activeEvents.Contains(eventVm.SignalEvent.EventId))
                     {
-                        System.Console.WriteLine($"[PLAYHEAD ENTER] ▶ Starting event '{evt.Name}' on {channel.ChannelName} at {startTime:F3}s");
-                    }
-                    // Check if playhead just exited this event
-                    else if (currentTime >= endTime && currentTime < endTime + 0.1) // Within 100ms of end
-                    {
-                        System.Console.WriteLine($"[PLAYHEAD EXIT] ◀ Finished event '{evt.Name}' on {channel.ChannelName} at {endTime:F3}s");
+                        _activeEvents.Remove(eventVm.SignalEvent.EventId);
+                        System.Console.WriteLine($"[PLAYHEAD EXIT] ⏹ '{eventVm.SignalEvent.Name}' on {channel.ChannelName} @ {eventEnd:F3}s");
                     }
                 }
             }
@@ -515,6 +513,116 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
                         MessageBoxButton.OK,
                         MessageBoxImage.Error);
                 }
+            }
+        }
+
+        private void OnEventRightClick(object sender, MouseButtonEventArgs e)
+        {
+            System.Console.WriteLine($"[EVENT RIGHT CLICK] Context menu opening");
+            
+            if (sender is Border border && border.Tag is TimelineEventViewModel eventVM)
+            {
+                var viewModel = DataContext as SignalManagerViewModel;
+                if (viewModel != null)
+                {
+                    viewModel.SelectedTimelineEvent = eventVM;
+                    System.Console.WriteLine($"[EVENT RIGHT CLICK] Selected event: {eventVM.SignalEvent.Name}");
+                }
+            }
+        }
+
+        private void OnEditEvent(object sender, RoutedEventArgs e)
+        {
+            System.Console.WriteLine($"[EDIT EVENT] OnEditEvent called");
+            
+            var viewModel = DataContext as SignalManagerViewModel;
+            if (viewModel?.SelectedTimelineEvent == null)
+            {
+                System.Console.WriteLine($"[EDIT EVENT ERROR] No event selected");
+                return;
+            }
+
+            var selectedEvent = viewModel.SelectedTimelineEvent.SignalEvent;
+            System.Console.WriteLine($"[EDIT EVENT] Editing: {selectedEvent.Name} on CH{selectedEvent.Channel}");
+            
+            // TODO: Open edit dialog - por ahora mostramos propiedades actuales
+            string paramInfo = string.Join(", ", selectedEvent.Parameters.Select(kvp => $"{kvp.Key}={kvp.Value:F2}"));
+            MessageBox.Show(
+                $"Event: {selectedEvent.Name}\n" +
+                $"Type: {selectedEvent.EventType}\n" +
+                $"Channel: {selectedEvent.Channel}\n" +
+                $"Start: {selectedEvent.StartTime.TotalSeconds:F3}s\n" +
+                $"Duration: {selectedEvent.Duration.TotalSeconds:F3}s\n" +
+                $"Device: {selectedEvent.DeviceModel}\n" +
+                $"Parameters: {paramInfo}\n\n" +
+                "Full edit dialog coming soon!",
+                "Event Properties",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+
+        private void OnDeleteEvent(object sender, RoutedEventArgs e)
+        {
+            System.Console.WriteLine($"[DELETE EVENT] OnDeleteEvent called");
+            
+            var viewModel = DataContext as SignalManagerViewModel;
+            if (viewModel?.SelectedTimelineEvent == null)
+            {
+                System.Console.WriteLine($"[DELETE EVENT ERROR] No event selected");
+                return;
+            }
+
+            var selectedEvent = viewModel.SelectedTimelineEvent.SignalEvent;
+            System.Console.WriteLine($"[DELETE EVENT] Deleting: {selectedEvent.Name} (ID: {selectedEvent.EventId})");
+            
+            var result = MessageBox.Show(
+                $"Are you sure you want to delete event '{selectedEvent.Name}'?\n\n" +
+                $"Channel: {selectedEvent.DeviceModel} CH{selectedEvent.Channel}\n" +
+                $"Time: {selectedEvent.StartTime.TotalSeconds:F1}s - {(selectedEvent.StartTime + selectedEvent.Duration).TotalSeconds:F1}s",
+                "Confirm Delete",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            
+            if (result == MessageBoxResult.Yes)
+            {
+                bool success = viewModel.DeleteEvent(selectedEvent.EventId);
+                System.Console.WriteLine($"[DELETE EVENT] Result: {(success ? "SUCCESS" : "FAILED")}");
+                
+                if (!success)
+                {
+                    MessageBox.Show(
+                        "Failed to delete event. Please try again.",
+                        "Delete Failed",
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
+            }
+        }
+
+        private void OnDuplicateEvent(object sender, RoutedEventArgs e)
+        {
+            System.Console.WriteLine($"[DUPLICATE EVENT] OnDuplicateEvent called");
+            
+            var viewModel = DataContext as SignalManagerViewModel;
+            if (viewModel?.SelectedTimelineEvent == null)
+            {
+                System.Console.WriteLine($"[DUPLICATE EVENT ERROR] No event selected");
+                return;
+            }
+
+            var selectedEvent = viewModel.SelectedTimelineEvent.SignalEvent;
+            System.Console.WriteLine($"[DUPLICATE EVENT] Duplicating: {selectedEvent.Name}");
+            
+            bool success = viewModel.DuplicateEvent(selectedEvent);
+            System.Console.WriteLine($"[DUPLICATE EVENT] Result: {(success ? "SUCCESS" : "FAILED")}");
+            
+            if (!success)
+            {
+                MessageBox.Show(
+                    "Failed to duplicate event. Check for time conflicts.",
+                    "Duplicate Failed",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
             }
         }
     }

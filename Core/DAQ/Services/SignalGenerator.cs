@@ -184,45 +184,26 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                     ? _lastWrittenValues[channel] 
                     : 0.0;
                 
-                // AUDIT LOG: Detailed timing information
-                var auditStartTime = DateTime.Now;
-                System.Console.WriteLine($"[RAMP AUDIT START] {auditStartTime:HH:mm:ss.ffffff} | CH{channel} | {currentValue:F3}V → {targetValue:F3}V | Duration: {durationMs}ms");
+                // COMPRESSED LOGGING: Solo inicio y fin
+                System.Console.WriteLine($"[RAMP START] CH{channel}: {currentValue:F3}V → {targetValue:F3}V ({durationMs}ms, {steps} steps)");
                 
                 double voltageStep = (targetValue - currentValue) / steps;
-                long durationNs = durationMs * 1_000_000L; // Convert to nanoseconds
+                long durationNs = durationMs * 1_000_000L;
                 long stepNs = durationNs / steps;
                 
-                // HIGH-PRECISION TIMING: Use Stopwatch instead of Task.Delay
                 var rampTimer = Stopwatch.StartNew();
                 long stepDelayTicks = (long)(stepNs / _ticksToNanoseconds);
-                
-                System.Console.WriteLine($"[RAMP CONFIG] Steps: {steps} | Step Voltage: {voltageStep:F6}V | Step Duration: {stepNs / 1_000_000.0:F3}ms ({stepDelayTicks} ticks)");
                 
                 for (int i = 0; i < steps; i++)
                 {
                     if (_disposed) return;
                     
-                    // Calculate target time for this step
                     long targetTicks = (i + 1) * stepDelayTicks;
-                    
-                    // Update voltage
                     currentValue += voltageStep;
                     _device.Write(channel, currentValue);
-                    
-                    // HIGH-PRECISION WAIT: Hybrid SpinWait + Task.Delay approach
                     await HighPrecisionWaitAsync(rampTimer, targetTicks);
-                    
-                    // AUDIT LOG: Every 20 steps or at critical points
-                    if (i % 20 == 0 || i == steps - 1)
-                    {
-                        long actualNs = (long)(rampTimer.ElapsedTicks * _ticksToNanoseconds);
-                        long expectedNs = (i + 1) * stepNs;
-                        long stepErrorNs = actualNs - expectedNs;
-                        System.Console.WriteLine($"[RAMP STEP {i + 1}/{steps}] Voltage: {currentValue:F3}V | Expected: {expectedNs / 1_000_000.0:F3}ms | Actual: {actualNs / 1_000_000.0:F3}ms | Error: {stepErrorNs / 1_000_000.0:F3}ms");
-                    }
                 }
 
-                // Ensure we hit the exact target value
                 _device.Write(channel, targetValue);
                 _lastWrittenValues[channel] = targetValue;
                 
@@ -231,9 +212,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                 long errorNs = totalNs - durationNs;
                 double errorPercent = (errorNs / (double)durationNs) * 100.0;
                 
-                var auditEndTime = DateTime.Now;
-                System.Console.WriteLine($"[RAMP AUDIT END] {auditEndTime:HH:mm:ss.ffffff} | CH{channel} | Final: {targetValue:F3}V");
-                System.Console.WriteLine($"[RAMP TIMING] Programmed: {durationMs}ms | Actual: {totalNs / 1_000_000.0:F3}ms | Error: {errorNs / 1_000_000.0:F3}ms ({errorPercent:F2}%)");
+                System.Console.WriteLine($"[RAMP END] CH{channel}: {targetValue:F3}V | {totalNs / 1_000_000.0:F1}ms (err: {errorPercent:F2}%)");
                 
                 _logger.Debug($"Ramp completed on channel {channel}: {currentValue:F3}V → {targetValue:F3}V in {totalNs / 1_000_000.0:F3}ms");
             }

@@ -18,10 +18,13 @@
             <Setter Property="BorderBrush" Value="#333"/>
             <Setter Property="Margin" Value="0,2"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Opacity" Value="0.85"/>  <!-- Semi-transparent for overlapping visibility -->
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="BorderThickness" Value="2"/>
                     <Setter Property="BorderBrush" Value="Black"/>
+                    <Setter Property="Opacity" Value="1.0"/>  <!-- Full opacity on hover -->
+                    <Setter Property="Panel.ZIndex" Value="1000"/>  <!-- Bring to front on hover -->
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -133,6 +136,8 @@
                                                     </Setter.Value>
                                                 </Setter>
                                                 <Setter Property="Canvas.Top" Value="4"/>
+                                                <!-- Z-Index based on start time - earlier events rendered below -->
+                                                <Setter Property="Panel.ZIndex" Value="{Binding ZIndex}"/>
                                             </Style>
                                         </ItemsControl.ItemContainerStyle>
                                         <ItemsControl.ItemTemplate>
@@ -143,6 +148,7 @@
                                                         ToolTip="{Binding DisplayText}"
                                                         MouseLeftButtonDown="OnEventClick"
                                                         MouseMove="OnEventMouseMove"
+                                                        MouseRightButtonDown="OnEventRightClick"
                                                         Tag="{Binding}"
                                                         Cursor="Hand">
                                                     <Border.Width>
@@ -151,6 +157,14 @@
                                                             <Binding Path="DataContext.TimelineWidth" RelativeSource="{RelativeSource AncestorType=UserControl}"/>
                                                         </MultiBinding>
                                                     </Border.Width>
+                                                    <Border.ContextMenu>
+                                                        <ContextMenu>
+                                                            <MenuItem Header="Edit Event" Click="OnEditEvent"/>
+                                                            <MenuItem Header="Delete Event" Click="OnDeleteEvent"/>
+                                                            <Separator/>
+                                                            <MenuItem Header="Duplicate Event" Click="OnDuplicateEvent"/>
+                                                        </ContextMenu>
+                                                    </Border.ContextMenu>
                                                     <TextBlock Text="{Binding SignalEvent.Name}" 
                                                                Foreground="White"
                                                                FontSize="10"

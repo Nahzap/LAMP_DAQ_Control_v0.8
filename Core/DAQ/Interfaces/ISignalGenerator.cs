@@ -14,9 +14,15 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Interfaces
         void Start(int channel, double frequency, double amplitude, double offset);
         
         /// <summary>
-        /// Stops signal generation
+        /// Stops all signal generation
         /// </summary>
         void Stop();
+        
+        /// <summary>
+        /// Stops signal generation on a specific channel only
+        /// </summary>
+        /// <param name="channel">Channel to stop</param>
+        void StopChannel(int channel);
         
         /// <summary>
         /// Sets a DC value on the specified channel

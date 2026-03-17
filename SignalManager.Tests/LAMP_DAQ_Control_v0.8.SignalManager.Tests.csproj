@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net472</TargetFramework>
+    <RootNamespace>LAMP_DAQ_Control_v0_8.SignalManager.Tests</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageReference Include="MSTest.TestAdapter" Version="3.6.4" />
+    <PackageReference Include="MSTest.TestFramework" Version="3.6.4" />
+    <PackageReference Include="coverlet.collector" Version="6.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="System.Numerics" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\LAMP_DAQ_Control_v0.8.csproj" />
+  </ItemGroup>
+
+</Project>
