@@ -1,0 +1,102 @@
+{
+  "SequenceId": "fa5187d8-e247-4a3f-a830-af046414a5ac",
+  "Name": "TEST_Outputs_analogs",
+  "Description": "",
+  "DesiredDurationSeconds": 10.0,
+  "Created": "2026-03-17T15:14:58.220175-03:00",
+  "Modified": "2026-03-17T16:46:01.7889337-03:00",
+  "Version": "1.0",
+  "Events": [
+    {
+      "EventId": "1a01bc20-2be0-4c3a-8018-a11e8299fc17",
+      "Name": "Ramp 0→5V (1s)",
+      "StartTimeNs": 0,
+      "DurationNs": 1000000000,
+      "Channel": 0,
+      "DeviceType": 1,
+      "DeviceModel": "PCIE-1824",
+      "EventType": 1,
+      "Color": "#2ECC71",
+      "Parameters": {
+        "startVoltage": 0.0,
+        "endVoltage": 5.0
+      }
+    },
+    {
+      "EventId": "691d144b-6679-407b-b1da-41b5a430e2cd",
+      "Name": "Ramp 0→5V (1s)",
+      "StartTimeNs": 0,
+      "DurationNs": 1000000000,
+      "Channel": 1,
+      "DeviceType": 1,
+      "DeviceModel": "PCIE-1824",
+      "EventType": 1,
+      "Color": "#2ECC71",
+      "Parameters": {
+        "startVoltage": 5.0,
+        "endVoltage": 0.0
+      }
+    },
+    {
+      "EventId": "79554bb0-a3b2-4628-a6d8-1f9b693eb872",
+      "Name": "Sine 1kHz",
+      "StartTimeNs": 1000000000,
+      "DurationNs": 3000000000,
+      "Channel": 1,
+      "DeviceType": 1,
+      "DeviceModel": "PCIE-1824",
+      "EventType": 2,
+      "Color": "#9B59B6",
+      "Parameters": {
+        "frequency": 1000.0,
+        "amplitude": 2.0,
+        "offset": 1.0
+      }
+    },
+    {
+      "EventId": "8589b65e-d27e-405e-8461-c3a309447066",
+      "Name": "Sine 500Hz",
+      "StartTimeNs": 1000000000,
+      "DurationNs": 3000000000,
+      "Channel": 0,
+      "DeviceType": 1,
+      "DeviceModel": "PCIE-1824",
+      "EventType": 2,
+      "Color": "#9B59B6",
+      "Parameters": {
+        "frequency": 500.0,
+        "amplitude": 2.0,
+        "offset": 4.0
+      }
+    },
+    {
+      "EventId": "cc954fc0-1ccb-41cc-bc9f-f81ba9e2a898",
+      "Name": "DC 0V",
+      "StartTimeNs": 4000000000,
+      "DurationNs": 3000000000,
+      "Channel": 1,
+      "DeviceType": 1,
+      "DeviceModel": "PCIE-1824",
+      "EventType": 0,
+      "Color": "#3498DB",
+      "Parameters": {
+        "voltage": 0.0
+      }
+    },
+    {
+      "EventId": "57647306-a805-41d7-8825-d94d67ae4073",
+      "Name": "Ramp 10→0V (3s)",
+      "StartTimeNs": 4000000000,
+      "DurationNs": 3000000000,
+      "Channel": 0,
+      "DeviceType": 1,
+      "DeviceModel": "PCIE-1824",
+      "EventType": 1,
+      "Color": "#2ECC71",
+      "Parameters": {
+        "startVoltage": 10.0,
+        "endVoltage": 0.0
+      }
+    }
+  ]
+}

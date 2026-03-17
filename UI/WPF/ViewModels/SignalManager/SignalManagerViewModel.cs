@@ -468,8 +468,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             {
                 System.Console.WriteLine($"[SEQUENCE] Creating sequence: {dialog.SequenceName}, Duration: {dialog.DurationSeconds}s");
                 
-                // DATA-ORIENTED ONLY: Create DO sequence
-                _currentSequenceId = _doManager.CreateSequence(dialog.SequenceName, dialog.Description);
+                // DATA-ORIENTED ONLY: Create DO sequence with configured max duration
+                _currentSequenceId = _doManager.CreateSequence(dialog.SequenceName, dialog.Description, dialog.DurationSeconds);
                 _currentAdapter = new SignalTableAdapter(_doManager, _currentSequenceId);
                 System.Console.WriteLine($"[DO SEQUENCE] Created DO sequence with ID: {_currentSequenceId}");
                 
@@ -507,9 +507,52 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
             if (dialog.ShowDialog() == true)
             {
-                // TODO: Implement DO-based Load
-                MessageBox.Show("Load sequence not yet implemented in DO mode", "Info", MessageBoxButton.OK, MessageBoxImage.Information);
-                StatusText = "Load feature pending DO implementation";
+                try
+                {
+                    System.Console.WriteLine($"[LOAD SEQUENCE] Loading from: {dialog.FileName}");
+                    
+                    // Load sequence using DO manager
+                    Guid loadedSequenceId = _doManager.LoadSequence(dialog.FileName);
+                    var sequenceData = _doManager.GetSequence(loadedSequenceId);
+                    
+                    System.Console.WriteLine($"[LOAD SEQUENCE] Loaded sequence ID: {loadedSequenceId}, Name: {sequenceData.Name}");
+                    
+                    // Create adapter for loaded sequence
+                    _currentSequenceId = loadedSequenceId;
+                    _currentAdapter = new SignalTableAdapter(_doManager, _currentSequenceId);
+                    
+                    // Create SignalSequence wrapper for UI
+                    var sequence = new SignalSequence
+                    {
+                        SequenceId = loadedSequenceId.ToString(),
+                        Name = sequenceData.Name,
+                        Description = sequenceData.Description,
+                        Metadata = new Dictionary<string, object> 
+                        { 
+                            ["FilePath"] = dialog.FileName,
+                            ["DesiredDuration"] = sequenceData.DurationSeconds
+                        }
+                    };
+                    
+                    // Add to sequences collection
+                    Sequences.Add(sequence);
+                    SelectedSequence = sequence;
+                    
+                    // Calculate total duration from loaded events
+                    TotalDurationSeconds = sequenceData.DurationSeconds;
+                    
+                    // Refresh timeline with loaded events
+                    UpdateTimeline();
+                    
+                    System.Console.WriteLine($"[LOAD SEQUENCE SUCCESS] Loaded '{sequenceData.Name}' with {sequenceData.SignalTable.Count} events");
+                    StatusText = $"Loaded sequence '{sequenceData.Name}' from {System.IO.Path.GetFileName(dialog.FileName)} ({sequenceData.SignalTable.Count} events)";
+                }
+                catch (Exception ex)
+                {
+                    System.Console.WriteLine($"[LOAD SEQUENCE ERROR] {ex.Message}");
+                    MessageBox.Show($"Failed to load sequence: {ex.Message}", "Load Error", MessageBoxButton.OK, MessageBoxImage.Error);
+                    StatusText = "Load failed";
+                }
             }
         }
 
@@ -703,14 +746,39 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
             System.Console.WriteLine($"[APPLY CHANGES] Updating event ID={SelectedEvent.EventId}: StartTime={SelectedEvent.StartTime.TotalSeconds:F6}s, Duration={SelectedEvent.Duration.TotalSeconds:F6}s");
             
+            // CRITICAL: Validate and clamp event to sequence duration boundary
+            double originalDuration = SelectedEvent.Duration.TotalSeconds;
+            double eventEndTime = SelectedEvent.StartTime.TotalSeconds + originalDuration;
+            bool wasClamped = false;
+            
+            if (eventEndTime > TotalDurationSeconds)
+            {
+                double maxAllowedDuration = TotalDurationSeconds - SelectedEvent.StartTime.TotalSeconds;
+                if (maxAllowedDuration < 0) maxAllowedDuration = 0;
+                
+                System.Console.WriteLine($"[APPLY CHANGES WARNING] Event exceeds sequence duration!");
+                System.Console.WriteLine($"[APPLY CHANGES WARNING]   Original: {SelectedEvent.StartTime.TotalSeconds:F3}s + {originalDuration:F3}s = {eventEndTime:F3}s");
+                System.Console.WriteLine($"[APPLY CHANGES WARNING]   Sequence limit: {TotalDurationSeconds:F3}s");
+                System.Console.WriteLine($"[APPLY CHANGES WARNING]   Clamping duration: {originalDuration:F3}s → {maxAllowedDuration:F3}s");
+                
+                SelectedEvent.Duration = TimeSpan.FromSeconds(maxAllowedDuration);
+                wasClamped = true;
+            }
+            
             // Find event index in DO table by matching EventId
             var table = _currentAdapter.Table;
+            System.Console.WriteLine($"[APPLY CHANGES] Searching for EventId: {SelectedEvent.EventId} in table with {table.Count} events");
+            for (int i = 0; i < table.Count; i++)
+            {
+                System.Console.WriteLine($"[APPLY CHANGES]   Table[{i}]: {table.Names[i]} | EventId: {table.EventIds[i]}");
+            }
+            
             bool found = false;
             for (int i = 0; i < table.Count; i++)
             {
                 if (table.EventIds[i].ToString() == SelectedEvent.EventId)
                 {
-                    System.Console.WriteLine($"[APPLY CHANGES] Found event at index {i}, updating...");
+                    System.Console.WriteLine($"[APPLY CHANGES] MATCH at index {i}, updating...");
                     
                     // Update DO table directly
                     table.StartTimesNs[i] = (long)(SelectedEvent.StartTime.TotalSeconds * 1e9);
@@ -745,7 +813,16 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             }
             
             UpdateTimeline();
-            StatusText = found ? "Event updated in DO table" : "Error: Event not found";
+            
+            // Update status with warning if event was clamped
+            if (wasClamped && found)
+            {
+                StatusText = $"⚠️ Event duration clamped to {SelectedEvent.Duration.TotalSeconds:F1}s (sequence limit: {TotalDurationSeconds:F1}s)";
+            }
+            else
+            {
+                StatusText = found ? "Event updated in DO table" : "Error: Event not found";
+            }
         }
 
         private void OnZoomIn()
@@ -841,8 +918,11 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             OnPropertyChanged(nameof(TimelineChannels));
 
             // Add events to appropriate channels (creates NEW ViewModels)
+            System.Console.WriteLine($"[UPDATE TIMELINE] Creating ViewModels for {events.Count} events...");
             foreach (var evt in events)
             {
+                System.Console.WriteLine($"[UPDATE TIMELINE]   Event: '{evt.Name}' | EventId: {evt.EventId} | StartTime: {evt.StartTime.TotalSeconds:F3}s");
+                
                 var targetChannel = TimelineChannels.FirstOrDefault(ch => 
                     ch.ChannelNumber == evt.Channel && 
                     ch.DeviceType == evt.DeviceType &&
@@ -850,8 +930,11 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
                 if (targetChannel != null)
                 {
-                    System.Console.WriteLine($"[UPDATE TIMELINE] Adding event '{evt.Name}' to channel {targetChannel.ChannelName} (Type: {targetChannel.DeviceType})");
                     targetChannel.AddEvent(evt, TotalDurationSeconds);
+                }
+                else
+                {
+                    System.Console.WriteLine($"[UPDATE TIMELINE WARNING] No target channel found for '{evt.Name}'");
                 }
             }
 
@@ -1141,7 +1224,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         {
             Application.Current.Dispatcher.Invoke(() =>
             {
-                StatusText = $"Error executing {e.Event.Name}: {e.Error.Message}";
+                string eventName = e.Event != null ? e.Event.Name : "sequence";
+                StatusText = $"Error executing {eventName}: {e.Error.Message}";
+                System.Console.WriteLine($"[EXEC ERROR HANDLER] {e.Error.Message}");
             });
         }
         
@@ -1270,6 +1355,16 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
             {
                 // Verify event exists before deletion
                 System.Console.WriteLine($"[DELETE EVENT] Count before: {_currentAdapter.Count}");
+                System.Console.WriteLine($"[DELETE EVENT] Looking for EventId: {eventId}");
+                
+                // Debug: List all current EventIds in table
+                var table = _currentAdapter.Table;
+                System.Console.WriteLine($"[DELETE EVENT] Current table contents:");
+                for (int i = 0; i < table.Count; i++)
+                {
+                    System.Console.WriteLine($"[DELETE EVENT]   [{i}] {table.Names[i]} | EventId: {table.EventIds[i]}");
+                }
+                
                 var eventToDelete = _currentAdapter.FindEventById(eventId);
                 if (eventToDelete == null)
                 {
@@ -1277,7 +1372,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                     StatusText = $"Event not found for deletion";
                     return false;
                 }
-                System.Console.WriteLine($"[DELETE EVENT] Found event: {eventToDelete.Name}");
+                System.Console.WriteLine($"[DELETE EVENT] Found event: {eventToDelete.Name} (EventId: {eventToDelete.EventId})");
                 
                 // Remove from DO system
                 System.Console.WriteLine($"[DELETE EVENT] Calling RemoveEvent on adapter...");

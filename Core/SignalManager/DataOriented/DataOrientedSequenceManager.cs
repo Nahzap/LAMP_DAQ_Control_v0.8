@@ -22,7 +22,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         /// <summary>
         /// Creates a new sequence
         /// </summary>
-        public Guid CreateSequence(string name, string description = "")
+        public Guid CreateSequence(string name, string description, double desiredDurationSeconds = 10.0)
         {
             var id = Guid.NewGuid();
             var data = new SequenceData
@@ -31,12 +31,13 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 Name = name,
                 Description = description,
                 SignalTable = new SignalTable(64),
+                DesiredDurationSeconds = desiredDurationSeconds,
                 Created = DateTime.Now,
                 Modified = DateTime.Now
             };
             
             _sequences[id] = data;
-            System.Console.WriteLine($"[DO MANAGER] Created sequence '{name}' (ID: {id})");
+            System.Console.WriteLine($"[DO MANAGER] Created sequence '{name}' (ID: {id}, MaxDuration: {desiredDurationSeconds}s)");
             return id;
         }
         
@@ -62,6 +63,26 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 Name = data.Name,
                 Description = data.Description,
                 EventCount = data.SignalTable.Count,
+                Created = data.Created,
+                Modified = data.Modified
+            };
+        }
+        
+        /// <summary>
+        /// Gets full sequence data (for loading)
+        /// </summary>
+        public SequenceInfo GetSequence(Guid sequenceId)
+        {
+            if (!_sequences.TryGetValue(sequenceId, out var data))
+                return null;
+            
+            return new SequenceInfo
+            {
+                SequenceId = data.SequenceId,
+                Name = data.Name,
+                Description = data.Description,
+                SignalTable = data.SignalTable,
+                DurationSeconds = data.DesiredDurationSeconds, // Use CONFIGURED duration, not calculated
                 Created = data.Created,
                 Modified = data.Modified
             };
@@ -322,6 +343,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 SequenceId = data.SequenceId,
                 Name = data.Name,
                 Description = data.Description,
+                DesiredDurationSeconds = data.DesiredDurationSeconds, // Save configured max duration
                 Created = data.Created,
                 Modified = data.Modified
             };
@@ -379,6 +401,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 SequenceId = dto.SequenceId,
                 Name = dto.Name,
                 Description = dto.Description,
+                DesiredDurationSeconds = dto.DesiredDurationSeconds, // Restore configured max duration
                 Created = dto.Created,
                 Modified = dto.Modified,
                 SignalTable = new SignalTable(Math.Max(64, dto.Events.Count * 2))
@@ -469,6 +492,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             public string Name { get; set; }
             public string Description { get; set; }
             public SignalTable SignalTable { get; set; }
+            public double DesiredDurationSeconds { get; set; } // CONFIGURED max duration, not calculated from events
             public DateTime Created { get; set; }
             public DateTime Modified { get; set; }
         }
@@ -483,6 +507,20 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         public string Name { get; set; }
         public string Description { get; set; }
         public int EventCount { get; set; }
+        public DateTime Created { get; set; }
+        public DateTime Modified { get; set; }
+    }
+    
+    /// <summary>
+    /// Full sequence information (for loading)
+    /// </summary>
+    public class SequenceInfo
+    {
+        public Guid SequenceId { get; set; }
+        public string Name { get; set; }
+        public string Description { get; set; }
+        public SignalTable SignalTable { get; set; }
+        public double DurationSeconds { get; set; }
         public DateTime Created { get; set; }
         public DateTime Modified { get; set; }
     }

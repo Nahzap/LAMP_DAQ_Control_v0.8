@@ -165,9 +165,12 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     }
                 }
                 
-                OnExecutionError(ex);
+                // CRITICAL: Reset state BEFORE throwing to allow retry
                 State = ExecutionState.Idle;
                 CurrentTime = TimeSpan.Zero;
+                OnStateChanged(ExecutionState.Idle);
+                
+                OnExecutionError(ex);
                 throw;
             }
             finally
@@ -205,7 +208,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 while (i < table.Count && table.StartTimesNs[i] == currentGroupStartNs)
                 {
                     int eventIndex = i; // Capture for closure
-                    parallelTasks.Add(ExecuteEventAtIndexAsync(table, eventIndex, cancellationToken));
+                    // CRITICAL FIX: Use Task.Run to ensure true parallel execution
+                    // Without Task.Run, synchronous code before first await blocks other tasks
+                    parallelTasks.Add(Task.Run(() => ExecuteEventAtIndexAsync(table, eventIndex, cancellationToken), cancellationToken));
                     i++;
                 }
                 

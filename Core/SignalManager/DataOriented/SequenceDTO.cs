@@ -13,6 +13,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         public Guid SequenceId { get; set; }
         public string Name { get; set; }
         public string Description { get; set; }
+        public double DesiredDurationSeconds { get; set; } // CONFIGURED max duration for the sequence
         public DateTime Created { get; set; }
         public DateTime Modified { get; set; }
         public string Version { get; set; }
@@ -22,6 +23,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         {
             Events = new List<SignalEventDTO>();
             Version = "1.0";
+            DesiredDurationSeconds = 10.0; // Default 10s
         }
     }
     

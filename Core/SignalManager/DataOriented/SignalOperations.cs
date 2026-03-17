@@ -183,6 +183,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         
         /// <summary>
         /// Applies a permutation to table (cycle-following algorithm)
+        /// CRITICAL: Also permutes SignalAttributeStore to keep indices synchronized
         /// </summary>
         private static void ApplyPermutation(SignalTable table, int[] perm)
         {
@@ -195,7 +196,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 
                 int j = i;
                 
-                // Save initial element
+                // Save initial element (ALL data including attributes)
                 var tempId = table.EventIds[i];
                 var tempStart = table.StartTimesNs[i];
                 var tempDuration = table.DurationsNs[i];
@@ -206,12 +207,18 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 var tempEventType = table.EventTypes[i];
                 var tempColor = table.Colors[i];
                 
+                // CRITICAL: Also save attributes from SignalAttributeStore
+                var (tempFreq, tempAmp, tempOffset) = table.Attributes.GetWaveformParams(i);
+                var tempStartV = table.Attributes.GetStartVoltage(i, double.NaN);
+                var tempEndV = table.Attributes.GetEndVoltage(i, double.NaN);
+                var tempVoltage = table.Attributes.GetVoltage(i, double.NaN);
+                
                 // Follow cycle
                 while (perm[j] != i)
                 {
                     int next = perm[j];
                     
-                    // Copy from next to j
+                    // Copy from next to j (ALL data including attributes)
                     table.EventIds[j] = table.EventIds[next];
                     table.StartTimesNs[j] = table.StartTimesNs[next];
                     table.DurationsNs[j] = table.DurationsNs[next];
@@ -221,6 +228,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     table.Names[j] = table.Names[next];
                     table.EventTypes[j] = table.EventTypes[next];
                     table.Colors[j] = table.Colors[next];
+                    
+                    // CRITICAL: Also copy attributes
+                    table.Attributes.Swap(j, next);
                     
                     visited[j] = true;
                     j = next;
@@ -236,6 +246,16 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 table.Names[j] = tempName;
                 table.EventTypes[j] = tempEventType;
                 table.Colors[j] = tempColor;
+                
+                // CRITICAL: Restore attributes for initial element
+                if (!double.IsNaN(tempFreq))
+                    table.Attributes.SetWaveformParams(j, tempFreq, tempAmp, tempOffset);
+                if (!double.IsNaN(tempStartV))
+                    table.Attributes.SetStartVoltage(j, tempStartV);
+                if (!double.IsNaN(tempEndV))
+                    table.Attributes.SetEndVoltage(j, tempEndV);
+                if (!double.IsNaN(tempVoltage))
+                    table.Attributes.SetVoltage(j, tempVoltage);
                 
                 visited[j] = true;
             }
