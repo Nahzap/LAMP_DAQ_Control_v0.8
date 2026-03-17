@@ -30,6 +30,10 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         // HIGH-PRECISION TIMING: Stopwatch calibration for nanosecond accuracy
         private static readonly double _ticksToNanoseconds;
         
+        // CRITICAL: Cache LUT CSV in memory to avoid 10-15ms delay on every Start()
+        private static string[] _cachedSineLUT = null;
+        private static readonly object _lutCacheLock = new object();
+        
         static SignalGenerator()
         {
             // Calibrate Stopwatch ticks to nanoseconds conversion
@@ -364,20 +368,33 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                     }
                 }
                 
-                _logger.Info($"Accediendo a LUT CSV: {csvPath}");
+                // CRITICAL PERFORMANCE: Cache CSV in static memory (load once, use forever)
+                string[] lutLines;
+                int lutSize;
                 
-                // Sample rate será calculado dinámicamente más adelante
-                // basado en la frecuencia deseada y samples per cycle
+                lock (_lutCacheLock)
+                {
+                    if (_cachedSineLUT == null)
+                    {
+                        _logger.Info($"[CACHE MISS] Loading LUT CSV into static cache: {csvPath}");
+                        _cachedSineLUT = File.ReadAllLines(csvPath);
+                        _logger.Info($"[CACHE LOADED] {_cachedSineLUT.Length - 1} values cached in memory");
+                    }
+                    else
+                    {
+                        _logger.Info($"[CACHE HIT] Using cached LUT (no disk I/O)");
+                    }
+                    
+                    lutLines = _cachedSineLUT;
+                    lutSize = _cachedSineLUT.Length - 1; // Skip header
+                }
                 
-                // OPTIMIZACIÓN: Eliminar Thread.Sleep innecesarios (-30% latencia)
-                // Escribir valor inicial directamente sin delays
+                // OPTIMIZACIÓN: Escribir valor inicial directamente sin delays
                 _device.Write(channel, offset);
                 
                 _logger.Info($"Starting sine wave generation on channel {channel}: {frequency}Hz, {amplitude}V amplitude, {offset}V offset");
                 
                 // CRITICAL FIX: Calcular samples per cycle razonable y sample rate dinámico
-                // Para frecuencias bajas, usar menos samples (100-200)
-                // Para frecuencias altas, usar más samples (500-1000)
                 int samplesPerCycle;
                 if (frequency < 10) {
                     samplesPerCycle = 100;  // Frecuencias muy bajas: 100 samples
@@ -389,26 +406,14 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                     samplesPerCycle = 1000; // Frecuencias altas: 1000 samples
                 }
                 
-                // Calcular sample rate dinámico basado en frecuencia deseada
-                // Esto asegura que la frecuencia real coincida con la solicitada
                 double sampleRate = frequency * samplesPerCycle;
-                
                 _logger.Info($"Using {samplesPerCycle} samples per cycle at {sampleRate:F0} samples/sec for {frequency}Hz signal");
                 
                 // Inicializar el temporizador de alta precisión
                 var stopwatch = new System.Diagnostics.Stopwatch();
                 stopwatch.Start();
                 
-                // Calcular ticks por muestra con precisión
                 long ticksPerSample = (long)(System.Diagnostics.Stopwatch.Frequency / sampleRate);
-                
-                // Leer los valores de la LUT desde el archivo CSV
-                // Nota: Leemos el archivo una vez al inicio para obtener el tamaño total
-                int lutSize = File.ReadLines(csvPath).Count() - 1; // Restar 1 para la cabecera
-                _logger.Info($"CSV LUT contiene {lutSize} valores");
-                
-                // Cargar todas las líneas del CSV en un array para acceso más rápido
-                string[] lutLines = File.ReadAllLines(csvPath);
                 
                 // Generar la señal continuamente hasta que se cancele
                 while (!cancellationToken.IsCancellationRequested)

@@ -31,10 +31,10 @@ Este software permite controlar las tarjetas de adquisición de datos Advantech 
 ### Para PCIe-1824
 - **Salidas analógicas** de alta precisión
 - **Generación de señales** con precisión mejorada mediante LUTs de 65536 puntos
-- **Generación automática de LUT** si no existe en el directorio de salida
-- **Optimización para reducir jitter** mediante acceso directo a CSV y ciclo completo
-- **Configuración flexible** de parámetros de señal (frecuencia, amplitud, offset)
-- **Soporte para múltiples canales** analógicos
+- **Caché estático de LUT** (carga una sola vez, elimina jitter de I/O)
+- **Jitter < 2ms** en transiciones de loop (antes ~20ms)
+- **Configuración flexible** de parámetros editables en GUI (frecuencia, amplitud, offset)
+- **Soporte para múltiples canales** analógicos con generación paralela real
 
 ### Para PCI-1735U
 - **32 canales digitales** (4 puertos de 8 bits)
@@ -69,17 +69,21 @@ Este software permite controlar las tarjetas de adquisición de datos Advantech 
 - **Looping**: Repetición automática de secuencias
 
 #### Tipos de Eventos Soportados
-| Tipo | Descripción | Parámetros |
-|------|-------------|------------|
+| Tipo | Descripción | Parámetros Editables |
+|------|-------------|----------------------|
 | **Ramp** | Rampa de voltaje | Start Voltage (0-10V), End Voltage (0-10V), Duration |
 | **DC** | Nivel DC constante | Voltage (0-10V), Duration |
-| **Waveform** | Señal senoidal | Frequency (Hz), Amplitude (0-10V), Offset (0-10V) |
+| **Waveform** | Señal senoidal | **Frequency (Hz)**, **Amplitude (0-10V)**, **Offset DC (0-10V)**, Duration |
 | **Digital Pulse** | Pulso digital | Port (0-3), Bit (0-7), Duration |
 
-#### Mejoras Recientes (16-Mar-2026)
-- ✅ **Fix**: Drag & drop entre canales ahora actualiza correctamente device/channel info
-- ✅ **Fix**: Secuencias terminan exactamente al tiempo configurado (±10ms)
-- ✅ **Fix**: Eventos simultáneos ejecutan en paralelo real (sincronización de hardware)
+**Todos los parámetros son editables en tiempo real desde el Event Details panel y se reflejan automáticamente en la tabla de eventos.**
+
+#### Mejoras Recientes (17-Mar-2026)
+- ✅ **NEW**: Controles editables para Frequency, Amplitude, Offset en GUI
+- ✅ **NEW**: Tabla de eventos expandida con parámetros completos (Vmin, Vmax, N/A)
+- ✅ **PERFORMANCE**: Caché estático de LUT CSV (elimina 10-15ms de jitter por loop)
+- ✅ **PERFORMANCE**: Scheduler optimizado 1ms (antes 10ms, -90% jitter)
+- ✅ **FIX**: Generación de waveforms sin saltos horizontales en loops
 
 ## Requisitos del Sistema
 

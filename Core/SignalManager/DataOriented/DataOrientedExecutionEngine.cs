@@ -287,7 +287,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                                     break;
                                 }
                                 
-                                await Task.Delay(10, cancellationToken); // Check every 10ms
+                                await Task.Delay(1, cancellationToken); // Check every 1ms (minimize jitter)
                             }
                         }
                         catch (OperationCanceledException)
