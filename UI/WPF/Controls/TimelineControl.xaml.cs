@@ -16,12 +16,29 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
     {
         private bool _isScrollingSynchronized = false;
         private System.Collections.Generic.HashSet<string> _activeEvents = new System.Collections.Generic.HashSet<string>();
+        private System.Windows.Threading.DispatcherTimer _redrawTimer;
+        private bool _pendingRedraw = false;
 
         public TimelineControl()
         {
             InitializeComponent();
             this.Loaded += TimelineControl_Loaded;
             this.DataContextChanged += TimelineControl_DataContextChanged;
+            
+            _redrawTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(30)
+            };
+            _redrawTimer.Tick += (s, e) =>
+            {
+                _redrawTimer.Stop();
+                if (_pendingRedraw)
+                {
+                    _pendingRedraw = false;
+                    DrawTimeRuler();
+                    UpdatePlayhead();
+                }
+            };
         }
 
         private void TimelineControl_DataContextChanged(object sender, DependencyPropertyChangedEventArgs e)
@@ -42,9 +59,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
             if (e.PropertyName == nameof(SignalManagerViewModel.ZoomLevel) ||
                 e.PropertyName == nameof(SignalManagerViewModel.TimelineWidth))
             {
-                System.Console.WriteLine($"[TIMELINE] {e.PropertyName} changed, redrawing ruler and playhead");
-                DrawTimeRuler();
-                UpdatePlayhead(); // Redraw playhead on zoom/width change
+                _pendingRedraw = true;
+                _redrawTimer.Stop();
+                _redrawTimer.Start();
             }
             else if (e.PropertyName == nameof(SignalManagerViewModel.CurrentTimeSeconds))
             {
@@ -91,8 +108,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Controls
             double oldZoom = viewModel.ZoomLevel;
             double newZoom = oldZoom * factor;
             
-            // Limitar entre 0.1 y 100
-            newZoom = Math.Max(0.1, Math.Min(100, newZoom));
+            // Limitar entre 0.1 y 100000
+            newZoom = Math.Max(0.1, Math.Min(100000, newZoom));
             viewModel.ZoomLevel = newZoom;
             
             // CRITICAL: Adjust scroll to keep mouse position at same time

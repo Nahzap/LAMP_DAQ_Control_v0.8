@@ -42,6 +42,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         private double _zoomLevel;
         private bool _isLoopEnabled;
         private string _executionMode;
+        private string _selectedStartTimeUnit = "s";
+        private string _selectedDurationUnit = "ms";
 
         public SignalManagerViewModel(DAQController daqController, IEnumerable<UI.Models.DAQDevice> allDetectedDevices)
         {
@@ -182,6 +184,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                     OnPropertyChanged(nameof(SelectedEventAmplitude));
                     OnPropertyChanged(nameof(SelectedEventOffset));
                     OnPropertyChanged(nameof(SelectedEventHasWaveformParams));
+                    OnPropertyChanged(nameof(SelectedEventStartTimeValue));
+                    OnPropertyChanged(nameof(SelectedEventDurationValue));
+                    OnPropertyChanged(nameof(SelectedEventName));
                 }
             }
         }
@@ -247,6 +252,109 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                     SelectedEvent.Duration = TimeSpan.FromMilliseconds(value);
                     OnPropertyChanged();
                 }
+            }
+        }
+
+        // NEW: Time unit conversion properties
+        public string SelectedStartTimeUnit
+        {
+            get => _selectedStartTimeUnit;
+            set
+            {
+                if (SetProperty(ref _selectedStartTimeUnit, value))
+                {
+                    OnPropertyChanged(nameof(SelectedEventStartTimeValue));
+                    System.Console.WriteLine($"[TIME UNIT] Start time unit changed to: {value}");
+                }
+            }
+        }
+
+        public string SelectedDurationUnit
+        {
+            get => _selectedDurationUnit;
+            set
+            {
+                if (SetProperty(ref _selectedDurationUnit, value))
+                {
+                    OnPropertyChanged(nameof(SelectedEventDurationValue));
+                    System.Console.WriteLine($"[TIME UNIT] Duration unit changed to: {value}");
+                }
+            }
+        }
+
+        public double SelectedEventStartTimeValue
+        {
+            get
+            {
+                if (SelectedEvent == null) return 0;
+                long nanoseconds = (long)(SelectedEvent.StartTime.Ticks * 100); // Ticks to ns
+                return ConvertFromNanoseconds(nanoseconds, _selectedStartTimeUnit);
+            }
+            set
+            {
+                if (SelectedEvent != null)
+                {
+                    long nanoseconds = ConvertToNanoseconds(value, _selectedStartTimeUnit);
+                    SelectedEvent.StartTime = TimeSpan.FromTicks(nanoseconds / 100); // ns to Ticks
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SelectedEventStartSeconds));
+                    System.Console.WriteLine($"[TIME SET] Start time set to {value} {_selectedStartTimeUnit} = {nanoseconds}ns");
+                }
+            }
+        }
+
+        public double SelectedEventDurationValue
+        {
+            get
+            {
+                if (SelectedEvent == null) return 0;
+                long nanoseconds = (long)(SelectedEvent.Duration.Ticks * 100); // Ticks to ns
+                return ConvertFromNanoseconds(nanoseconds, _selectedDurationUnit);
+            }
+            set
+            {
+                if (SelectedEvent != null)
+                {
+                    long nanoseconds = ConvertToNanoseconds(value, _selectedDurationUnit);
+                    SelectedEvent.Duration = TimeSpan.FromTicks(nanoseconds / 100); // ns to Ticks
+                    OnPropertyChanged();
+                    OnPropertyChanged(nameof(SelectedEventDurationMs));
+                    System.Console.WriteLine($"[TIME SET] Duration set to {value} {_selectedDurationUnit} = {nanoseconds}ns");
+                }
+            }
+        }
+
+        private long ConvertToNanoseconds(double value, string unit)
+        {
+            switch (unit)
+            {
+                case "s":
+                    return (long)(value * 1e9);
+                case "ms":
+                    return (long)(value * 1e6);
+                case "µs":
+                    return (long)(value * 1e3);
+                case "ns":
+                    return (long)value;
+                default:
+                    return (long)(value * 1e9); // default to seconds
+            }
+        }
+
+        private double ConvertFromNanoseconds(long nanoseconds, string unit)
+        {
+            switch (unit)
+            {
+                case "s":
+                    return nanoseconds / 1e9;
+                case "ms":
+                    return nanoseconds / 1e6;
+                case "µs":
+                    return nanoseconds / 1e3;
+                case "ns":
+                    return nanoseconds;
+                default:
+                    return nanoseconds / 1e9; // default to seconds
             }
         }
 
@@ -334,6 +442,22 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         }
 
         public bool SelectedEventHasWaveformParams => SelectedEvent?.EventType == SignalEventType.Waveform;
+
+        // Property wrapper for Name to detect manual edits
+        public string SelectedEventName
+        {
+            get => SelectedEvent?.Name ?? "";
+            set
+            {
+                if (SelectedEvent != null && SelectedEvent.Name != value)
+                {
+                    SelectedEvent.Name = value;
+                    SelectedEvent.IsNameCustomized = true; // Mark as manually edited
+                    System.Console.WriteLine($"[NAME EDIT] User changed name to '{value}', IsNameCustomized=true");
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         public string StatusText
         {
@@ -784,6 +908,19 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                     table.StartTimesNs[i] = (long)(SelectedEvent.StartTime.TotalSeconds * 1e9);
                     table.DurationsNs[i] = (long)(SelectedEvent.Duration.TotalSeconds * 1e9);
                     
+                    // CRITICAL FIX: Auto-naming if not customized
+                    if (!SelectedEvent.IsNameCustomized)
+                    {
+                        string autoName = GenerateAutoName(SelectedEvent);
+                        SelectedEvent.Name = autoName;
+                        System.Console.WriteLine($"[AUTO-NAME] Generated name: '{autoName}'");
+                    }
+                    
+                    // Sync Name and Color to DO table
+                    table.Names[i] = SelectedEvent.Name;
+                    table.Colors[i] = SelectedEvent.Color;
+                    System.Console.WriteLine($"[APPLY CHANGES] Updated Name: '{SelectedEvent.Name}', Color: {SelectedEvent.Color}");
+                    
                     if (SelectedEvent.EventType == SignalEventType.Ramp)
                     {
                         double startV = SelectedEvent.Parameters.ContainsKey("startVoltage") ? SelectedEvent.Parameters["startVoltage"] : 0;
@@ -828,9 +965,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         private void OnZoomIn()
         {
             // Zoom gradual: +20% por click
-            if (ZoomLevel < 100)
+            if (ZoomLevel < 100000)
             {
-                ZoomLevel = Math.Min(100, ZoomLevel * 1.2);
+                ZoomLevel = Math.Min(100000, ZoomLevel * 1.2);
                 StatusText = $"Zoom: {ZoomLevelText}X";
                 System.Console.WriteLine($"[ZOOM BTN+] Level: {ZoomLevel:F2}X");
             }
@@ -1489,6 +1626,89 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                 StatusText = $"Failed to duplicate event: {ex.Message}";
                 return false;
             }
+        }
+
+        /// <summary>
+        /// Generates an intelligent name based on signal type and parameters
+        /// </summary>
+        private string GenerateAutoName(SignalEvent evt)
+        {
+            switch (evt.EventType)
+            {
+                case SignalEventType.DC:
+                    if (evt.Parameters.ContainsKey("voltage"))
+                    {
+                        double voltage = evt.Parameters["voltage"];
+                        return $"DC {voltage:F1}V";
+                    }
+                    return "DC";
+
+                case SignalEventType.Ramp:
+                    if (evt.Parameters.ContainsKey("startVoltage") && evt.Parameters.ContainsKey("endVoltage"))
+                    {
+                        double startV = evt.Parameters["startVoltage"];
+                        double endV = evt.Parameters["endVoltage"];
+                        string duration = FormatDuration(evt.Duration);
+                        return $"Ramp {startV:F1}→{endV:F1}V ({duration})";
+                    }
+                    return "Ramp";
+
+                case SignalEventType.Waveform:
+                    if (evt.Parameters.ContainsKey("frequency") && 
+                        evt.Parameters.ContainsKey("amplitude") && 
+                        evt.Parameters.ContainsKey("offset"))
+                    {
+                        double freq = evt.Parameters["frequency"];
+                        double amp = evt.Parameters["amplitude"];
+                        double offset = evt.Parameters["offset"];
+                        string freqStr = FormatFrequency(freq);
+                        return $"Sine {freqStr} ({amp:F1}V±{offset:F1}V)";
+                    }
+                    return "Waveform";
+
+                case SignalEventType.DigitalPulse:
+                    string pulseDur = FormatDuration(evt.Duration);
+                    return $"Pulse {pulseDur}";
+
+                case SignalEventType.DigitalState:
+                    if (evt.Parameters.ContainsKey("state"))
+                    {
+                        bool isHigh = evt.Parameters["state"] > 0.5;
+                        return isHigh ? "HIGH" : "LOW";
+                    }
+                    return "Digital";
+
+                case SignalEventType.Wait:
+                    string waitDur = FormatDuration(evt.Duration);
+                    return $"Wait {waitDur}";
+
+                default:
+                    return "Signal";
+            }
+        }
+
+        private string FormatFrequency(double hz)
+        {
+            if (hz >= 1e6)
+                return $"{hz / 1e6:F2}MHz";
+            if (hz >= 1e3)
+                return $"{hz / 1e3:F1}kHz";
+            return $"{hz:F0}Hz";
+        }
+
+        private string FormatDuration(TimeSpan duration)
+        {
+            double totalSeconds = duration.TotalSeconds;
+            if (totalSeconds >= 1)
+                return $"{totalSeconds:F1}s";
+            double totalMs = duration.TotalMilliseconds;
+            if (totalMs >= 1)
+                return $"{totalMs:F0}ms";
+            double totalUs = totalMs * 1000;
+            if (totalUs >= 1)
+                return $"{totalUs:F0}µs";
+            double totalNs = totalUs * 1000;
+            return $"{totalNs:F0}ns";
         }
 
         #endregion

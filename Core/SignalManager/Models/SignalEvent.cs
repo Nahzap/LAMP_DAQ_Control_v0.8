@@ -66,11 +66,18 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Models
         /// </summary>
         public string Color { get; set; }
 
+        /// <summary>
+        /// Flag indicating if the name has been manually customized by the user.
+        /// If false, the name will be auto-generated based on signal parameters.
+        /// </summary>
+        public bool IsNameCustomized { get; set; }
+
         public SignalEvent()
         {
             EventId = Guid.NewGuid().ToString();
             Parameters = new Dictionary<string, double>();
             Color = "#4A90E2"; // Default blue
+            IsNameCustomized = false; // Default: allow auto-naming
         }
 
         /// <summary>

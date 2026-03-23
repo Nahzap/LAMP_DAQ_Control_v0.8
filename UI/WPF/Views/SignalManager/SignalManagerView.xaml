@@ -192,8 +192,9 @@
                     <ScrollViewer VerticalScrollBarVisibility="Auto">
                         <StackPanel>
                             <TextBlock Text="Name:" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <TextBox Text="{Binding SelectedEvent.Name, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,0,0,10"/>
+                            <TextBox Text="{Binding SelectedEventName, UpdateSourceTrigger=LostFocus}" 
+                                     Margin="0,0,0,10"
+                                     ToolTip="Edit name manually (disables auto-naming)"/>
 
                             <TextBlock Text="Event Type:" FontWeight="Bold" Margin="0,0,0,5"/>
                             <ComboBox SelectedItem="{Binding SelectedEvent.EventType}" 
@@ -203,13 +204,45 @@
                             <TextBox Text="{Binding SelectedEvent.Channel, UpdateSourceTrigger=PropertyChanged}" 
                                      Margin="0,0,0,10"/>
 
-                            <TextBlock Text="Start Time (s):" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <TextBox Text="{Binding SelectedEventStartSeconds, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,0,0,10"/>
+                            <TextBlock Text="Start Time:" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="5"/>
+                                    <ColumnDefinition Width="60"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" 
+                                         Text="{Binding SelectedEventStartTimeValue, UpdateSourceTrigger=LostFocus, StringFormat=F6}" 
+                                         ToolTip="Enter start time value"/>
+                                <ComboBox Grid.Column="2" 
+                                          SelectedItem="{Binding SelectedStartTimeUnit}"
+                                          ToolTip="Select time unit">
+                                    <ComboBoxItem Content="s"/>
+                                    <ComboBoxItem Content="ms"/>
+                                    <ComboBoxItem Content="µs"/>
+                                    <ComboBoxItem Content="ns"/>
+                                </ComboBox>
+                            </Grid>
 
-                            <TextBlock Text="Duration (ms):" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <TextBox Text="{Binding SelectedEventDurationMs, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,0,0,10"/>
+                            <TextBlock Text="Duration:" FontWeight="Bold" Margin="0,0,0,5"/>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="5"/>
+                                    <ColumnDefinition Width="60"/>
+                                </Grid.ColumnDefinitions>
+                                <TextBox Grid.Column="0" 
+                                         Text="{Binding SelectedEventDurationValue, UpdateSourceTrigger=LostFocus, StringFormat=F6}" 
+                                         ToolTip="Enter duration value"/>
+                                <ComboBox Grid.Column="2" 
+                                          SelectedItem="{Binding SelectedDurationUnit}"
+                                          ToolTip="Select time unit">
+                                    <ComboBoxItem Content="s"/>
+                                    <ComboBoxItem Content="ms"/>
+                                    <ComboBoxItem Content="µs"/>
+                                    <ComboBoxItem Content="ns"/>
+                                </ComboBox>
+                            </Grid>
 
                             <!-- Start Voltage for Ramp events -->
                             <TextBlock Text="Start Voltage (V):" FontWeight="Bold" Margin="0,0,0,5"
@@ -287,7 +320,7 @@
                                       SelectedItem="{Binding SelectedEventFromList, Mode=TwoWay}"
                                       Margin="10">
                                 <DataGrid.Columns>
-                                    <DataGridTextColumn Header="Name" Binding="{Binding Name}" Width="90"/>
+                                    <DataGridTextColumn Header="Name" Binding="{Binding Name, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" Width="90" IsReadOnly="False"/>
                                     <DataGridTextColumn Header="Ch" Binding="{Binding Channel}" Width="35"/>
                                     <DataGridTextColumn Header="Device" Binding="{Binding DeviceModel}" Width="70"/>
                                     <DataGridTextColumn Header="Type" Binding="{Binding EventType}" Width="65"/>
