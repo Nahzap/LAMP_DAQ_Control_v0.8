@@ -109,15 +109,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
 
             try
             {
-                // Determinar tipo de dispositivo objetivo
-                bool isDigitalProfile = profileName != null && 
-                                       (profileName.Contains("PCI1735") || profileName.Contains("1735"));
-                bool isAnalogProfile = profileName != null && 
-                                      (profileName.Contains("PCIe1824") || profileName.Contains("1824"));
-                
-                DeviceType targetType = isDigitalProfile ? DeviceType.Digital : 
-                                       isAnalogProfile ? DeviceType.Analog : 
-                                       DeviceType.Unknown;
+                // Determinar tipo de dispositivo objetivo (fuente de verdad única)
+                DeviceType targetType = DeviceTypeResolver.ResolveFromProfile(profileName);
                 
                 // CRITICAL FIX: Solo bloquear si es el MISMO tipo de dispositivo
                 if (_deviceManager.IsInitialized && _deviceManager.CurrentDeviceType == targetType)
@@ -127,7 +120,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
                 }
                 
                 _logger.Info($"Inicializando dispositivo {deviceNumber} con perfil: {profileName ?? "<ninguno>"}" +
-                             $" (Digital: {isDigitalProfile}, Analógico: {isAnalogProfile})");
+                             $" (Tipo objetivo: {targetType})");
 
                 // Initialize the device with profile name to help determine device type
                 _deviceManager.InitializeDevice(deviceNumber, profileName);
@@ -143,15 +136,15 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
                 
                 // Corregir el perfil si es necesario
                 string correctedProfile = profileName;
-                if (deviceInfo.DeviceType == DeviceType.Digital && !isDigitalProfile)
+                if (deviceInfo.DeviceType != targetType && targetType != DeviceType.Unknown)
                 {
-                    correctedProfile = "PCI1735U_prof_v1";
-                    _logger.Warn($"Perfil incompatible. Cambiando a perfil digital: {correctedProfile}");
+                    correctedProfile = DeviceTypeResolver.GetDefaultProfile(deviceInfo.DeviceType);
+                    if (correctedProfile != null)
+                        _logger.Warn($"Perfil incompatible. Cambiando a: {correctedProfile}");
                 }
-                else if (deviceInfo.DeviceType == DeviceType.Analog && !isAnalogProfile)
+                else if (targetType == DeviceType.Unknown)
                 {
-                    correctedProfile = "PCIe1824_prof_v1";
-                    _logger.Warn($"Perfil incompatible. Cambiando a perfil analógico: {correctedProfile}");
+                    correctedProfile = DeviceTypeResolver.GetDefaultProfile(deviceInfo.DeviceType) ?? profileName;
                 }
                 
                 // Try to load the profile (ahora solo necesitamos llamar a un método)

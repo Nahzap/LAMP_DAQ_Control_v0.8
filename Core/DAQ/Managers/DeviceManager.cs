@@ -84,15 +84,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
         {
             EnsureNotDisposed();
             
-            // Determinar el tipo de dispositivo basado en el nombre del perfil
-            bool isDigitalProfile = !string.IsNullOrEmpty(profileName) && 
-                                   (profileName.Contains("PCI1735") || profileName.Contains("1735"));
-            bool isAnalogProfile = !string.IsNullOrEmpty(profileName) && 
-                                  (profileName.Contains("PCIe1824") || profileName.Contains("1824"));
-            
-            DeviceType targetDeviceType = isDigitalProfile ? DeviceType.Digital : 
-                                         isAnalogProfile ? DeviceType.Analog : 
-                                         DeviceType.Unknown;
+            // Determinar el tipo de dispositivo (fuente de verdad única)
+            DeviceType targetDeviceType = DeviceTypeResolver.ResolveFromProfile(profileName);
 
             try
             {
@@ -114,7 +107,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                 _deviceNumber = deviceNumber;
                 _logger.Info($"Detectando tipo de dispositivo para ID {deviceNumber}, perfil: {profileName ?? "(ninguno)"}...");
                 
-                if (isDigitalProfile)
+                if (targetDeviceType == DeviceType.Digital)
                 {
                     _logger.Info("Perfil digital detectado, intentando inicializar como PCI-1735U...");
                     
@@ -138,7 +131,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                 }
                 
                 // Si aún no se ha inicializado y no es un perfil digital específico, intentamos como digital
-                if (!isDigitalProfile && TryInitializeDigitalDevice(deviceNumber))
+                if (targetDeviceType != DeviceType.Digital && TryInitializeDigitalDevice(deviceNumber))
                 {
                     _deviceType = DeviceType.Digital;
                     _logger.Info($"Dispositivo digital inicializado: {_deviceModel}");

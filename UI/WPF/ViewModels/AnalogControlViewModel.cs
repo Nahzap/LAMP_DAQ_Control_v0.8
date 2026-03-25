@@ -35,10 +35,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             get => _selectedChannel;
             set
             {
-                System.Console.WriteLine($"[SETTER CALLED] SelectedChannel setter invoked with value: {value}");
                 var oldValue = _selectedChannel;
                 bool changed = SetProperty(ref _selectedChannel, value);
-                System.Console.WriteLine($"[SETTER] SetProperty returned: {changed}, old={oldValue}, new={value}");
                 if (changed)
                 {
                     _actionLogger?.LogValueChange("SelectedChannel", oldValue, value, "AnalogControlViewModel");
@@ -53,10 +51,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             get => _voltage;
             set
             {
-                System.Console.WriteLine($"[SETTER CALLED] Voltage setter invoked with value: {value}");
                 var oldValue = _voltage;
                 bool changed = SetProperty(ref _voltage, value);
-                System.Console.WriteLine($"[SETTER] SetProperty returned: {changed}, old={oldValue}, new={value}");
                 if (changed)
                 {
                     _actionLogger?.LogValueChange("Voltage (DC)", oldValue, value, "AnalogControlViewModel");
@@ -84,10 +80,8 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             get => _rampDuration;
             set
             {
-                System.Console.WriteLine($"[SETTER CALLED] RampDuration setter invoked with value: {value}");
                 var oldValue = _rampDuration;
                 bool changed = SetProperty(ref _rampDuration, value);
-                System.Console.WriteLine($"[SETTER] SetProperty returned: {changed}, old={oldValue}, new={value}");
                 if (changed)
                 {
                     _actionLogger?.LogValueChange("Ramp Duration", oldValue, value, "AnalogControlViewModel");
@@ -162,8 +156,6 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             
             ChartData = new ObservableCollection<DataPoint>();
             
-            System.Console.WriteLine($"[VIEWMODEL] AnalogControlViewModel created. Instance: {GetHashCode()}");
-            
             // Valores por defecto
             Voltage = 0.0;
             TargetVoltage = 5.0;
@@ -189,11 +181,6 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             if (_actionLogger != null)
             {
                 _actionLogger.LogUserAction("AnalogControlViewModel Logger Connected", "Action logging enabled for analog control");
-                System.Console.WriteLine("[DEBUG] AnalogControlViewModel: ActionLogger successfully connected");
-            }
-            else
-            {
-                System.Console.WriteLine("[DEBUG] AnalogControlViewModel: ActionLogger is NULL!");
             }
         }
         
@@ -272,7 +259,6 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             catch (ObjectDisposedException ex)
             {
                 _actionLogger?.LogException("GenerateRamp - Device Disposed", ex);
-                System.Console.WriteLine($"[ERROR] Device disposed during ramp: {ex.Message}");
                 MessageBox.Show(
                     $"El dispositivo fue desconectado durante la rampa.\n\nDetalles: {ex.Message}",
                     "Error - Dispositivo Desconectado",
@@ -282,7 +268,6 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             catch (ArgumentOutOfRangeException ex)
             {
                 _actionLogger?.LogException("GenerateRamp - Invalid Parameters", ex);
-                System.Console.WriteLine($"[ERROR] Invalid ramp parameters: {ex.Message}");
                 MessageBox.Show(
                     $"Parámetros de rampa inválidos.\n\nDetalles: {ex.Message}",
                     "Error - Parámetros Inválidos",
@@ -292,8 +277,6 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             catch (Exception ex)
             {
                 _actionLogger?.LogException("GenerateRamp - Unexpected Error", ex);
-                System.Console.WriteLine($"[ERROR] Ramp generation failed: {ex.GetType().Name} - {ex.Message}");
-                System.Console.WriteLine($"[ERROR] Stack trace: {ex.StackTrace}");
                 MessageBox.Show(
                     $"Error inesperado al generar rampa:\n\n{ex.GetType().Name}: {ex.Message}\n\nStack Trace:\n{ex.StackTrace}",
                     "Error - Generación de Rampa",
@@ -303,7 +286,6 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             finally
             {
                 _isRampGenerating = false;
-                System.Console.WriteLine($"[DEBUG] Ramp generation completed. _isRampGenerating = false");
             }
         }
         

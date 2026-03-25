@@ -14,6 +14,7 @@
     <Deterministic>true</Deterministic>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RestorePackages>false</RestorePackages>
+    <RuntimeIdentifiers>win</RuntimeIdentifiers>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -108,6 +109,8 @@
     <Compile Include="Core\DAQ\Services\FileLogger.cs" />
     <Compile Include="Core\DAQ\Services\ActionLogger.cs" />
     <Compile Include="Core\DAQ\Services\CompositeLogger.cs" />
+    <Compile Include="Core\DAQ\Services\DeviceTypeResolver.cs" />
+    <Compile Include="Core\DAQ\Services\GlobalExceptionLogger.cs" />
     <Compile Include="Core\DAQ\Services\SignalGenerator.cs" />
     <Compile Include="Core\DAQ\Services\SignalLUT.cs" />
     <!-- Signal Manager Core -->
@@ -170,6 +173,9 @@
     <Compile Include="UI\WPF\Windows\MainWindow.xaml.cs">
       <DependentUpon>MainWindow.xaml</DependentUpon>
     </Compile>
+    <Compile Include="UI\WPF\Windows\SplashWindow.xaml.cs">
+      <DependentUpon>SplashWindow.xaml</DependentUpon>
+    </Compile>
     <Compile Include="UI\WPF\Views\AnalogControlPanel.xaml.cs">
       <DependentUpon>AnalogControlPanel.xaml</DependentUpon>
     </Compile>
@@ -190,6 +196,10 @@
       <Generator>MSBuild:Compile</Generator>
     </Page>
     <Page Include="UI\WPF\Windows\MainWindow.xaml">
+      <SubType>Designer</SubType>
+      <Generator>MSBuild:Compile</Generator>
+    </Page>
+    <Page Include="UI\WPF\Windows\SplashWindow.xaml">
       <SubType>Designer</SubType>
       <Generator>MSBuild:Compile</Generator>
     </Page>

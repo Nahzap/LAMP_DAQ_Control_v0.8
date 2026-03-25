@@ -145,19 +145,23 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 EventTypes[index] = EventTypes[lastIndex];
                 Colors[index] = Colors[lastIndex];
                 
-                // Update lookup index for moved element
-                System.Console.WriteLine($"[SIGNAL TABLE] Updating _idToIndex[{movedId}]: {lastIndex} → {index}");
-                _idToIndex[movedId] = index;
-                
                 // Transfer attributes
                 Attributes.Swap(index, lastIndex);
             }
             
             // Clear last slot
             Attributes.Clear(lastIndex);
-            System.Console.WriteLine($"[SIGNAL TABLE] Removing from _idToIndex: {removedId}");
-            _idToIndex.Remove(removedId);
             Count--;
+            
+            // CRITICAL FIX: Rebuild entire _idToIndex dictionary to ensure synchronization
+            // This fixes the bug where dictionary indices become stale after swap operations
+            System.Console.WriteLine($"[SIGNAL TABLE] Rebuilding _idToIndex dictionary for {Count} events...");
+            _idToIndex.Clear();
+            for (int i = 0; i < Count; i++)
+            {
+                _idToIndex[EventIds[i]] = i;
+            }
+            System.Console.WriteLine($"[SIGNAL TABLE] Dictionary rebuilt successfully");
             
             // Debug: Print _idToIndex state AFTER removal
             System.Console.WriteLine($"[SIGNAL TABLE] _idToIndex state AFTER removal (Count={Count}):");

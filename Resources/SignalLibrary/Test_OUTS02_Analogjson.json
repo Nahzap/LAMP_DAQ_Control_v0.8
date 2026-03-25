@@ -4,12 +4,12 @@
   "Description": "",
   "DesiredDurationSeconds": 10.0,
   "Created": "2026-03-17T15:14:58.220175-03:00",
-  "Modified": "2026-03-17T16:46:01.7889337-03:00",
+  "Modified": "2026-03-25T11:57:27.119498-03:00",
   "Version": "1.0",
   "Events": [
     {
       "EventId": "1a01bc20-2be0-4c3a-8018-a11e8299fc17",
-      "Name": "Ramp 0→5V (1s)",
+      "Name": "Ramp 0,0→5,0V (1,0s)",
       "StartTimeNs": 0,
       "DurationNs": 1000000000,
       "Channel": 0,
@@ -24,7 +24,7 @@
     },
     {
       "EventId": "691d144b-6679-407b-b1da-41b5a430e2cd",
-      "Name": "Ramp 0→5V (1s)",
+      "Name": "Ramp 5,0→0,0V (1,0s)",
       "StartTimeNs": 0,
       "DurationNs": 1000000000,
       "Channel": 1,
@@ -39,9 +39,9 @@
     },
     {
       "EventId": "79554bb0-a3b2-4628-a6d8-1f9b693eb872",
-      "Name": "Sine 1kHz",
+      "Name": "Sine 1,0kHz (2,0V±2,0V)",
       "StartTimeNs": 1000000000,
-      "DurationNs": 3000000000,
+      "DurationNs": 6000000000,
       "Channel": 1,
       "DeviceType": 1,
       "DeviceModel": "PCIE-1824",
@@ -50,14 +50,14 @@
       "Parameters": {
         "frequency": 1000.0,
         "amplitude": 2.0,
-        "offset": 1.0
+        "offset": 2.0
       }
     },
     {
       "EventId": "8589b65e-d27e-405e-8461-c3a309447066",
-      "Name": "Sine 500Hz",
+      "Name": "Sine 500Hz (2,0V±4,0V)",
       "StartTimeNs": 1000000000,
-      "DurationNs": 3000000000,
+      "DurationNs": 6000000000,
       "Channel": 0,
       "DeviceType": 1,
       "DeviceModel": "PCIE-1824",
@@ -70,9 +70,33 @@
       }
     },
     {
+      "EventId": "1396ae32-cf3b-4664-badd-ce8758b470d2",
+      "Name": "HIGH",
+      "StartTimeNs": 1200000000,
+      "DurationNs": 1000000000,
+      "Channel": 25,
+      "DeviceType": 2,
+      "DeviceModel": "PCI-1735U",
+      "EventType": 4,
+      "Color": "#27AE60",
+      "Parameters": {}
+    },
+    {
+      "EventId": "3708b4ee-4eb1-4e7e-bb3b-2caa2c208b4b",
+      "Name": "LOW",
+      "StartTimeNs": 2400000000,
+      "DurationNs": 1000000000,
+      "Channel": 25,
+      "DeviceType": 2,
+      "DeviceModel": "PCI-1735U",
+      "EventType": 4,
+      "Color": "#7F8C8D",
+      "Parameters": {}
+    },
+    {
       "EventId": "cc954fc0-1ccb-41cc-bc9f-f81ba9e2a898",
-      "Name": "DC 0V",
-      "StartTimeNs": 4000000000,
+      "Name": "DC 0,0V",
+      "StartTimeNs": 7000000000,
       "DurationNs": 3000000000,
       "Channel": 1,
       "DeviceType": 1,
@@ -85,8 +109,8 @@
     },
     {
       "EventId": "57647306-a805-41d7-8825-d94d67ae4073",
-      "Name": "Ramp 10→0V (3s)",
-      "StartTimeNs": 4000000000,
+      "Name": "Ramp 10,0→0,0V (3,0s)",
+      "StartTimeNs": 7000000000,
       "DurationNs": 3000000000,
       "Channel": 0,
       "DeviceType": 1,

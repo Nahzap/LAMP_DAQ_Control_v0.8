@@ -23,24 +23,28 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
 
         // Diccionario para manejar múltiples canales activos simultáneamente
         private readonly Dictionary<int, CancellationTokenSource> _activeChannels = new Dictionary<int, CancellationTokenSource>();
+        private readonly object _activeChannelsLock = new object();
         
         // CRITICAL FIX: Track last written values per channel for smooth ramps
         private readonly Dictionary<int, double> _lastWrittenValues = new Dictionary<int, double>();
+        private readonly object _lastWrittenValuesLock = new object();
         
         // HIGH-PRECISION TIMING: Stopwatch calibration for nanosecond accuracy
         private static readonly double _ticksToNanoseconds;
         
-        // CRITICAL: Cache LUT CSV in memory to avoid 10-15ms delay on every Start()
-        private static string[] _cachedSineLUT = null;
+        // CRITICAL: Pre-parsed LUT values cached as double[] for zero-allocation hot loop
+        private static double[] _cachedNormalizedValues = null;
+        private static int _cachedLutSize = 0;
         private static readonly object _lutCacheLock = new object();
+        
+        // PHASE SYNC: Barrier for synchronized waveform start across multiple channels
+        private static Barrier _phaseBarrier = null;
+        private static readonly object _barrierLock = new object();
         
         static SignalGenerator()
         {
             // Calibrate Stopwatch ticks to nanoseconds conversion
             _ticksToNanoseconds = 1_000_000_000.0 / Stopwatch.Frequency;
-            System.Console.WriteLine($"[SIGNAL GEN CALIBRATION] Stopwatch Frequency: {Stopwatch.Frequency} Hz");
-            System.Console.WriteLine($"[SIGNAL GEN CALIBRATION] Ticks to Nanoseconds: {_ticksToNanoseconds:F6} ns/tick");
-            System.Console.WriteLine($"[SIGNAL GEN CALIBRATION] High Resolution: {Stopwatch.IsHighResolution}");
         }
 
         /// <summary>
@@ -67,22 +71,28 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
 
             try
             {
-                // Stop any existing signal generation on this channel
-                if (_activeChannels.ContainsKey(channel))
+                CancellationTokenSource cts;
+                
+                // CRITICAL: Lock _activeChannels to prevent race condition between parallel waveforms
+                lock (_activeChannelsLock)
                 {
-                    // Cancelar la generación existente para este canal
-                    var existingCts = _activeChannels[channel];
-                    if (existingCts != null && !existingCts.IsCancellationRequested)
+                    // Stop any existing signal generation on this channel
+                    if (_activeChannels.ContainsKey(channel))
                     {
-                        existingCts.Cancel();
-                        existingCts.Dispose();
+                        // Cancelar la generación existente para este canal
+                        var existingCts = _activeChannels[channel];
+                        if (existingCts != null && !existingCts.IsCancellationRequested)
+                        {
+                            existingCts.Cancel();
+                            existingCts.Dispose();
+                        }
+                        _activeChannels.Remove(channel);
                     }
-                    _activeChannels.Remove(channel);
-                }
 
-                // Create a new cancellation token source for this channel
-                var cts = new CancellationTokenSource();
-                _activeChannels[channel] = cts;
+                    // Create a new cancellation token source for this channel
+                    cts = new CancellationTokenSource();
+                    _activeChannels[channel] = cts;
+                }
 
                 // Start the signal generation on a background thread with high priority
                 var thread = new Thread(() => GenerateSignal(channel, frequency, amplitude, offset, cts.Token));
@@ -100,18 +110,93 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         }
 
         /// <summary>
+        /// Pre-loads the LUT cache to avoid cache miss delays during parallel waveform execution
+        /// CRITICAL: Call this BEFORE starting parallel waveforms to ensure phase synchronization
+        /// </summary>
+        public static void PreloadLutCache()
+        {
+            lock (_lutCacheLock)
+            {
+                if (_cachedNormalizedValues != null)
+                {
+                    // Already loaded
+                    return;
+                }
+                
+                string csvPath = SignalLUT.GetFullLutPath(SignalLUTs.SIN_LUT_FILENAME);
+                
+                if (!File.Exists(csvPath))
+                {
+                    // Generate if missing
+                    SignalLUT.GenerateSineLutFile(SignalLUTs.SIN_LUT_FILENAME, SignalLUTs.RECOMMENDED_LUT_SIZE);
+                }
+                
+                var lutLines = File.ReadAllLines(csvPath);
+                int size = lutLines.Length - 1; // Skip header
+                _cachedNormalizedValues = new double[size];
+                
+                for (int idx = 0; idx < size; idx++)
+                {
+                    string line = lutLines[idx + 1];
+                    if (!string.IsNullOrEmpty(line))
+                    {
+                        string[] parts = line.Split(',');
+                        if (parts.Length >= 2 && ushort.TryParse(parts[1], out ushort val))
+                        {
+                            _cachedNormalizedValues[idx] = val / 65535.0;
+                            continue;
+                        }
+                    }
+                    _cachedNormalizedValues[idx] = 0.5;
+                }
+                
+                _cachedLutSize = size;
+            }
+        }
+        
+        /// <summary>
+        /// Prepares a phase synchronization barrier for N parallel waveforms
+        /// CRITICAL: Call this before launching parallel waveforms, then call Start() on each channel
+        /// </summary>
+        public static void PreparePhaseBarrier(int participantCount)
+        {
+            lock (_barrierLock)
+            {
+                _phaseBarrier?.Dispose();
+                _phaseBarrier = new Barrier(participantCount);
+            }
+        }
+        
+        /// <summary>
+        /// Clears the phase barrier after parallel waveforms have started
+        /// </summary>
+        public static void ClearPhaseBarrier()
+        {
+            lock (_barrierLock)
+            {
+                _phaseBarrier?.Dispose();
+                _phaseBarrier = null;
+            }
+        }
+        
+        /// <summary>
         /// Stops signal generation on all channels
         /// </summary>
         public void Stop()
         {
-            // Detener la generación en todos los canales activos
-            foreach (var channel in _activeChannels.Keys.ToList())
+            List<int> channels;
+            
+            // CRITICAL: Lock to get snapshot of active channels
+            lock (_activeChannelsLock)
+            {
+                channels = _activeChannels.Keys.ToList();
+            }
+            
+            // Stop all channels (StopChannel has its own lock)
+            foreach (var channel in channels)
             {
                 StopChannel(channel);
             }
-            
-            // Limpiar el diccionario de canales activos
-            _activeChannels.Clear();
         }
         
         /// <summary>
@@ -119,20 +204,28 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         /// </summary>
         public void StopChannel(int channel)
         {
-            if (_activeChannels.ContainsKey(channel))
+            CancellationTokenSource cts = null;
+            
+            // CRITICAL: Lock to safely remove from dictionary
+            lock (_activeChannelsLock)
+            {
+                if (_activeChannels.ContainsKey(channel))
+                {
+                    cts = _activeChannels[channel];
+                    _activeChannels.Remove(channel);
+                }
+            }
+            
+            // Cancel and dispose outside lock to avoid holding lock during I/O
+            if (cts != null)
             {
                 try
                 {
-                    // Cancelar la generación para este canal
-                    var cts = _activeChannels[channel];
-                    if (cts != null && !cts.IsCancellationRequested)
+                    if (!cts.IsCancellationRequested)
                     {
                         cts.Cancel();
                         cts.Dispose();
                     }
-                    
-                    // Eliminar el canal del diccionario
-                    _activeChannels.Remove(channel);
                     
                     // Reset the channel to 0V
                     _device.Write(channel, 0.0);
@@ -158,8 +251,13 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
             try
             {
                 _device.Write(channel, value);
-                // Track last written value
-                _lastWrittenValues[channel] = value;
+                
+                // Track last written value (thread-safe)
+                lock (_lastWrittenValuesLock)
+                {
+                    _lastWrittenValues[channel] = value;
+                }
+                
                 _logger.Debug($"DC value set on channel {channel}: {value}V");
             }
             catch (Exception ex)
@@ -183,10 +281,14 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
             {
                 const int steps = 100;
                 
-                // CRITICAL FIX: Get last written value for this channel
-                double currentValue = _lastWrittenValues.ContainsKey(channel) 
-                    ? _lastWrittenValues[channel] 
-                    : 0.0;
+                // CRITICAL FIX: Get last written value for this channel (thread-safe)
+                double currentValue;
+                lock (_lastWrittenValuesLock)
+                {
+                    currentValue = _lastWrittenValues.ContainsKey(channel) 
+                        ? _lastWrittenValues[channel] 
+                        : 0.0;
+                }
                 
                 // COMPRESSED LOGGING: Solo inicio y fin
                 System.Console.WriteLine($"[RAMP START] CH{channel}: {currentValue:F3}V → {targetValue:F3}V ({durationMs}ms, {steps} steps)");
@@ -209,7 +311,12 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                 }
 
                 _device.Write(channel, targetValue);
-                _lastWrittenValues[channel] = targetValue;
+                
+                // Thread-safe update of last written value
+                lock (_lastWrittenValuesLock)
+                {
+                    _lastWrittenValues[channel] = targetValue;
+                }
                 
                 rampTimer.Stop();
                 long totalNs = (long)(rampTimer.ElapsedTicks * _ticksToNanoseconds);
@@ -368,60 +475,96 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                     }
                 }
                 
-                // CRITICAL PERFORMANCE: Cache CSV in static memory (load once, use forever)
-                string[] lutLines;
+                // CRITICAL PERFORMANCE: Pre-parse LUT to double[] (load once, zero allocations in hot loop)
                 int lutSize;
                 
                 lock (_lutCacheLock)
                 {
-                    if (_cachedSineLUT == null)
+                    if (_cachedNormalizedValues == null)
                     {
-                        _logger.Info($"[CACHE MISS] Loading LUT CSV into static cache: {csvPath}");
-                        _cachedSineLUT = File.ReadAllLines(csvPath);
-                        _logger.Info($"[CACHE LOADED] {_cachedSineLUT.Length - 1} values cached in memory");
+                        _logger.Info($"[CACHE MISS] Loading and pre-parsing LUT CSV: {csvPath}");
+                        var lutLines = File.ReadAllLines(csvPath);
+                        int size = lutLines.Length - 1; // Skip header
+                        _cachedNormalizedValues = new double[size];
+                        
+                        for (int idx = 0; idx < size; idx++)
+                        {
+                            string line = lutLines[idx + 1];
+                            if (!string.IsNullOrEmpty(line))
+                            {
+                                string[] parts = line.Split(',');
+                                if (parts.Length >= 2 && ushort.TryParse(parts[1], out ushort val))
+                                {
+                                    _cachedNormalizedValues[idx] = val / 65535.0;
+                                    continue;
+                                }
+                            }
+                            _cachedNormalizedValues[idx] = 0.5;
+                        }
+                        
+                        _cachedLutSize = size;
+                        _logger.Info($"[CACHE LOADED] {size} values pre-parsed to double[]");
                     }
                     else
                     {
-                        _logger.Info($"[CACHE HIT] Using cached LUT (no disk I/O)");
+                        _logger.Info($"[CACHE HIT] Using pre-parsed LUT (no disk I/O, no string parsing)");
                     }
                     
-                    lutLines = _cachedSineLUT;
-                    lutSize = _cachedSineLUT.Length - 1; // Skip header
+                    lutSize = _cachedLutSize;
                 }
                 
                 // OPTIMIZACIÓN: Escribir valor inicial directamente sin delays
                 _device.Write(channel, offset);
                 
-                _logger.Info($"Starting sine wave generation on channel {channel}: {frequency}Hz, {amplitude}V amplitude, {offset}V offset");
-                
-                // CRITICAL FIX: Calcular samples per cycle razonable y sample rate dinámico
-                int samplesPerCycle;
-                if (frequency < 10) {
-                    samplesPerCycle = 100;  // Frecuencias muy bajas: 100 samples
-                } else if (frequency < 50) {
-                    samplesPerCycle = 200;  // Frecuencias bajas: 200 samples
-                } else if (frequency < 500) {
-                    samplesPerCycle = 500;  // Frecuencias medias: 500 samples
-                } else {
-                    samplesPerCycle = 1000; // Frecuencias altas: 1000 samples
+                // ===== PRE-COMPUTE EVERYTHING BEFORE BARRIER =====
+                const double TARGET_SAMPLE_RATE = 100000.0; // 100 kHz
+                int samplesPerCycle = (int)(TARGET_SAMPLE_RATE / frequency);
+                if (samplesPerCycle < 20) {
+                    samplesPerCycle = 20;
+                } else if (samplesPerCycle > 10000) {
+                    samplesPerCycle = 10000;
                 }
-                
                 double sampleRate = frequency * samplesPerCycle;
+                long ticksPerSample = (long)(System.Diagnostics.Stopwatch.Frequency / sampleRate);
+                
+                _logger.Info($"Starting sine wave generation on channel {channel}: {frequency}Hz, {amplitude}V amplitude, {offset}V offset");
                 _logger.Info($"Using {samplesPerCycle} samples per cycle at {sampleRate:F0} samples/sec for {frequency}Hz signal");
                 
-                // Inicializar el temporizador de alta precisión
+                // Start stopwatch BEFORE barrier so ElapsedTicks is available immediately after release
                 var stopwatch = new System.Diagnostics.Stopwatch();
                 stopwatch.Start();
                 
-                long ticksPerSample = (long)(System.Diagnostics.Stopwatch.Frequency / sampleRate);
+                // ===== PHASE SYNC BARRIER =====
+                Barrier barrier = null;
+                lock (_barrierLock)
+                {
+                    barrier = _phaseBarrier;
+                }
+                
+                if (barrier != null)
+                {
+                    _logger.Info($"[PHASE SYNC] CH{channel} ready - waiting at barrier...");
+                    try
+                    {
+                        barrier.SignalAndWait(2000); // 2s timeout
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.Warn($"[PHASE SYNC] CH{channel} barrier error: {ex.Message}");
+                    }
+                }
+                
+                // ===== CRITICAL: FIRST INSTRUCTION AFTER BARRIER RELEASE =====
+                // Capture epoch IMMEDIATELY - ZERO code between barrier release and this line
+                long startTicks = stopwatch.ElapsedTicks;
+                
+                // These can be set after epoch capture (not time-critical)
+                long totalSampleCount = 0;
+                long lastStatsReportTicks = startTicks;
                 
                 // Generar la señal continuamente hasta que se cancele
                 while (!cancellationToken.IsCancellationRequested)
                 {
-                    // Reiniciar temporizador para cada ciclo completo
-                    // Esto evita la acumulación de errores de temporización
-                    long cycleStartTicks = stopwatch.ElapsedTicks;
-                    
                     // Generar exactamente un ciclo completo
                     for (int i = 0; i < samplesPerCycle; i++)
                     {
@@ -432,20 +575,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                         int lutIndex = (int)(phase * lutSize);
                         lutIndex = Math.Max(0, Math.Min(lutIndex, lutSize - 1)); // Asegurar que esté en rango
                         
-                        // Leer el valor directamente del array de líneas CSV para este índice
-                        // Nota: Sumamos 1 para saltarnos la línea de cabecera
-                        string line = lutLines[lutIndex + 1];
-                        
-                        // Procesar la línea CSV para obtener el valor
-                        double normalizedValue = 0.5; // Valor predeterminado en caso de error
-                        if (!string.IsNullOrEmpty(line))
-                        {
-                            string[] parts = line.Split(',');
-                            if (parts.Length >= 2 && ushort.TryParse(parts[1], out ushort value))
-                            {
-                                normalizedValue = value / 65535.0; // Normalizar a [0,1]
-                            }
-                        }
+                        // Zero-allocation: direct array access to pre-parsed normalized values
+                        double normalizedValue = _cachedNormalizedValues[lutIndex];
                         
                         // Convertir a voltaje de salida (aplicando amplitud y offset)
                         double sineValue = (normalizedValue * 2.0) - 1.0; // Convertir [0,1] a [-1,1]
@@ -454,8 +585,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                         // Escribir al DAC
                         _device.Write(channel, outputVoltage);
                         
-                        // Calcular el tiempo exacto para la siguiente muestra
-                        long targetTicks = cycleStartTicks + (i + 1) * ticksPerSample;
+                        // ABSOLUTE TIMING: Target time computed from epoch, not per-cycle start
+                        totalSampleCount++;
+                        long targetTicks = startTicks + totalSampleCount * ticksPerSample;
                         
                         // Primera fase: espera gruesa con mínimo uso de CPU
                         while (stopwatch.ElapsedTicks < targetTicks - 20)
@@ -470,12 +602,17 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                         }
                     }
                     
-                    // Registrar estadísticas cada segundo
-                    if (stopwatch.ElapsedMilliseconds > 1000)
+                    // Registrar estadísticas cada segundo (NO restart - absolute timing preserved)
+                    long currentTicks = stopwatch.ElapsedTicks;
+                    long ticksSinceLastReport = currentTicks - lastStatsReportTicks;
+                    if (ticksSinceLastReport > System.Diagnostics.Stopwatch.Frequency) // > 1 second
                     {
-                        double cyclesPerSecond = stopwatch.ElapsedTicks / (ticksPerSample * samplesPerCycle);
-                        _logger.Debug($"Signal stats: {cyclesPerSecond:F2} Hz actual frequency");
-                        stopwatch.Restart();
+                        double elapsedSeconds = (double)ticksSinceLastReport / System.Diagnostics.Stopwatch.Frequency;
+                        double totalElapsed = (double)(currentTicks - startTicks) / System.Diagnostics.Stopwatch.Frequency;
+                        double expectedCycles = totalElapsed * frequency;
+                        double actualCycles = (double)totalSampleCount / samplesPerCycle;
+                        _logger.Debug($"Signal CH{channel}: {actualCycles / totalElapsed:F2}Hz actual, drift: {(actualCycles - expectedCycles):F4} cycles after {totalElapsed:F1}s");
+                        lastStatsReportTicks = currentTicks;
                     }
                 }
             }
@@ -489,11 +626,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
             }
             finally
             {
-                // Asegurar que el GC se reactiva incluso si hay excepciones
-                try { GC.EndNoGCRegion(); } catch { }
-                
-                // Restablecer afinidad de CPU al salir
-                try { Process.GetCurrentProcess().ProcessorAffinity = (IntPtr)0xFFFF; } catch { }
+                // Restablecer prioridad de thread al salir
+                try { Thread.CurrentThread.Priority = ThreadPriority.Normal; } catch { }
             }
         }
         #endregion

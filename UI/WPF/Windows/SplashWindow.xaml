@@ -1,0 +1,131 @@
+<Window x:Class="LAMP_DAQ_Control_v0_8.UI.WPF.Windows.SplashWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        WindowStartupLocation="CenterScreen"
+        ResizeMode="NoResize"
+        Width="620" Height="580"
+        Topmost="True"
+        ShowInTaskbar="False">
+
+    <Window.Resources>
+        <DropShadowEffect x:Key="SplashShadow" 
+                          BlurRadius="20" 
+                          ShadowDepth="5" 
+                          Opacity="0.6" 
+                          Color="Black"/>
+    </Window.Resources>
+
+    <Border CornerRadius="12"
+            Background="#FF1A2332"
+            BorderBrush="#FF3498DB"
+            BorderThickness="2"
+            Effect="{StaticResource SplashShadow}">
+        
+        <Grid Margin="30">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="*"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+                <RowDefinition Height="Auto"/>
+            </Grid.RowDefinitions>
+            
+            <!-- TÍTULO -->
+            <TextBlock Grid.Row="0"
+                       Text="LAMP DAQ Control"
+                       FontSize="32" FontWeight="Bold"
+                       Foreground="#3498DB"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,5"/>
+            
+            <!-- SUBTÍTULO -->
+            <TextBlock Grid.Row="1"
+                       Text="v0.8 — Sistema de Control y Adquisición de Datos"
+                       FontSize="14"
+                       Foreground="#95A5A6"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,15"/>
+            
+            <!-- SEPARADOR SUPERIOR -->
+            <Rectangle Grid.Row="2" Height="1" 
+                       Fill="#3498DB" Opacity="0.5" Margin="0,5"/>
+            
+            <!-- CONTENIDO DESCRIPTIVO -->
+            <StackPanel Grid.Row="3" Margin="10,15">
+                
+                <!-- Funcionalidad Analógica -->
+                <TextBlock Text="■  Control de Salidas Analógicas (PCIe-1824)"
+                           FontSize="13" FontWeight="SemiBold"
+                           Foreground="#E8E8E8" Margin="0,0,0,4"/>
+                <TextBlock FontSize="11" Foreground="#95A5A6" TextWrapping="Wrap" Margin="20,0,0,0"
+                           Text="Escritura DC por canal (0-10V), generación de rampas de voltaje con temporización de alta precisión, y generación de señales senoidales mediante tabla LUT."/>
+                
+                <Rectangle Height="1" Fill="#2C3E50" Margin="0,10"/>
+                
+                <!-- Funcionalidad Digital -->
+                <TextBlock Text="■  Monitoreo de Entradas Digitales (PCI-1735U)"
+                           FontSize="13" FontWeight="SemiBold"
+                           Foreground="#E8E8E8" Margin="0,10,0,4"/>
+                <TextBlock FontSize="11" Foreground="#95A5A6" TextWrapping="Wrap" Margin="20,0,0,0"
+                           Text="Lectura en tiempo real de 4 puertos × 8 bits (32 canales digitales). Frecuencia de muestreo configurable entre 5 y 100 Hz."/>
+                
+                <Rectangle Height="1" Fill="#2C3E50" Margin="0,10"/>
+                
+                <!-- Signal Manager -->
+                <TextBlock Text="■  Signal Manager — Secuencias Programadas"
+                           FontSize="13" FontWeight="SemiBold"
+                           Foreground="#E8E8E8" Margin="0,10,0,4"/>
+                <TextBlock FontSize="11" Foreground="#95A5A6" TextWrapping="Wrap" Margin="20,0,0,0"
+                           Text="Control temporal multi-canal con timeline visual para automatización de pruebas de laboratorio. Secuencias de voltaje programables."/>
+                
+            </StackPanel>
+            
+            <!-- SEPARADOR INFERIOR -->
+            <Rectangle Grid.Row="4" Height="1" 
+                       Fill="#3498DB" Opacity="0.3" Margin="0,5"/>
+            
+            <!-- HARDWARE SOPORTADO -->
+            <StackPanel Grid.Row="5" Orientation="Horizontal" 
+                        HorizontalAlignment="Center" Margin="0,8">
+                <TextBlock Text="Advantech PCIe-1824" 
+                           FontSize="11" Foreground="#27AE60" Margin="0,0,20,0"/>
+                <TextBlock Text="•" FontSize="11" Foreground="#555555" Margin="0,0,20,0"/>
+                <TextBlock Text="Advantech PCI-1735U" 
+                           FontSize="11" Foreground="#27AE60"/>
+            </StackPanel>
+            
+            <!-- BARRA DE PROGRESO -->
+            <Grid Grid.Row="6" Margin="0,10,0,5">
+                <ProgressBar x:Name="LoadProgress"
+                             Height="6"
+                             Minimum="0" Maximum="100" Value="0"
+                             Background="#2C3E50"
+                             Foreground="#3498DB"
+                             BorderThickness="0"/>
+            </Grid>
+            
+            <!-- STATUS MESSAGE -->
+            <TextBlock Grid.Row="7"
+                       x:Name="StatusText"
+                       Text="Iniciando aplicación..."
+                       FontSize="11"
+                       Foreground="#7F8C8D"
+                       HorizontalAlignment="Center"
+                       Margin="0,0,0,10"/>
+            
+            <!-- FOOTER -->
+            <TextBlock Grid.Row="8"
+                       Text=".NET Framework 4.7.2  |  Advantech DAQNavi SDK"
+                       FontSize="9"
+                       Foreground="#555555"
+                       HorizontalAlignment="Center"/>
+        </Grid>
+    </Border>
+</Window>

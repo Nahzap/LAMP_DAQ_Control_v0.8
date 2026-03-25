@@ -118,6 +118,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
         
         private void RefreshDevices()
         {
+            GlobalExceptionLogger.LogInfo("MainViewModel.RefreshDevices - Starting device detection...");
             _actionLogger?.LogButtonClick("RefreshDevices", "MainViewModel");
             _actionLogger?.LogUserAction("Refreshing Devices", "Scanning for DAQ devices");
             
@@ -125,8 +126,10 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             {
                 _actionLogger?.StartTiming();
                 StatusMessage = "Detectando dispositivos...";
+                GlobalExceptionLogger.LogInfo("MainViewModel.RefreshDevices - Calling DetectDAQDevices...");
                 
                 var detectedDevices = _detectionService.DetectDAQDevices();
+                GlobalExceptionLogger.LogInfo($"MainViewModel.RefreshDevices - Detected {detectedDevices.Count} device(s)");
                 
                 _actionLogger?.StopTiming("Device Detection");
                 
@@ -134,16 +137,19 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
                 foreach (var device in detectedDevices)
                 {
                     Devices.Add(device);
+                    GlobalExceptionLogger.LogInfo($"MainViewModel.RefreshDevices - Added device: {device.Name} (ID: {device.DeviceNumber})");
                 }
                 
                 if (Devices.Count > 0)
                 {
                     SelectedDevice = Devices[0];
                     StatusMessage = $"{Devices.Count} dispositivo(s) detectado(s)";
+                    GlobalExceptionLogger.LogInfo($"MainViewModel.RefreshDevices - Device detection completed successfully, selected: {Devices[0].Name}");
                 }
                 else
                 {
                     StatusMessage = "No se detectaron dispositivos";
+                    GlobalExceptionLogger.LogWarning("MainViewModel.RefreshDevices - No devices detected");
                     MessageBox.Show(
                         "No se encontraron tarjetas DAQ conectadas.\nVerifique que los drivers estén instalados.",
                         "Sin dispositivos",
@@ -153,6 +159,7 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
             }
             catch (Exception ex)
             {
+                GlobalExceptionLogger.LogCriticalError("MainViewModel.RefreshDevices - Device detection failed", ex);
                 StatusMessage = "Error al detectar dispositivos";
                 MessageBox.Show(
                     $"Error al detectar dispositivos:\n\n{ex.Message}",
@@ -169,29 +176,48 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels
         
         private void InitializeDevice(DAQDevice device)
         {
+            GlobalExceptionLogger.LogInfo($"MainViewModel.InitializeDevice - Starting initialization for: {device?.Name ?? "NULL"} (ID: {device?.DeviceNumber})");
+            GlobalExceptionLogger.LogInfo($"MainViewModel.InitializeDevice - Device type: {device.DeviceType}");
+            
             try
             {
                 StatusMessage = $"Inicializando {device.Name}...";
-                IsDeviceInitialized = false;
                 
-                // Inicializar controlador con el dispositivo
-                _controller.Initialize(device.ConfigFile, device.DeviceNumber);
+                // Determinar el perfil apropiado según el tipo de dispositivo
+                string profileName = null;
+                if (device.DeviceType == DeviceType.Analog)
+                    profileName = "PCIe1824_prof_v1.xml";
+                else if (device.DeviceType == DeviceType.Digital)
+                    profileName = "PCI1735U_prof_v1.xml";
+                
+                GlobalExceptionLogger.LogInfo($"MainViewModel.InitializeDevice - Profile selected: {profileName ?? "<none>"}");
+                GlobalExceptionLogger.LogInfo($"MainViewModel.InitializeDevice - Calling DAQController.Initialize...");
+                
+                _controller.Initialize(profileName, device.DeviceNumber);
+                
+                GlobalExceptionLogger.LogInfo("MainViewModel.InitializeDevice - DAQController.Initialize completed");
                 
                 // Inicializar ViewModel correspondiente
                 if (device.DeviceType == DeviceType.Analog)
                 {
+                    GlobalExceptionLogger.LogInfo("MainViewModel.InitializeDevice - Initializing AnalogControl...");
                     AnalogControl.Initialize(device);
+                    GlobalExceptionLogger.LogInfo("MainViewModel.InitializeDevice - AnalogControl initialized");
                 }
                 else if (device.DeviceType == DeviceType.Digital)
                 {
+                    GlobalExceptionLogger.LogInfo("MainViewModel.InitializeDevice - Initializing DigitalMonitor...");
                     DigitalMonitor.Initialize(device);
+                    GlobalExceptionLogger.LogInfo("MainViewModel.InitializeDevice - DigitalMonitor initialized");
                 }
                 
                 IsDeviceInitialized = true;
                 StatusMessage = $"{device.Name} inicializado correctamente";
+                GlobalExceptionLogger.LogInfo($"MainViewModel.InitializeDevice - Device initialization completed successfully: {device.Name}");
             }
             catch (Exception ex)
             {
+                GlobalExceptionLogger.LogCriticalError($"MainViewModel.InitializeDevice - Failed to initialize device: {device?.Name}", ex);
                 IsDeviceInitialized = false;
                 StatusMessage = "Error al inicializar dispositivo";
                 MessageBox.Show(

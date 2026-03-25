@@ -3,7 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:converters="clr-namespace:LAMP_DAQ_Control_v0_8.UI.WPF.Converters"
              xmlns:views="clr-namespace:LAMP_DAQ_Control_v0_8.UI.WPF.Views"
-             StartupUri="Windows/MainWindow.xaml">
+             >
     <Application.Resources>
         <!-- Converters -->
         <BooleanToVisibilityConverter x:Key="BoolToVisibilityConverter"/>

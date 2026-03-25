@@ -24,33 +24,42 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Windows
         
         private void OnWindowLoaded(object sender, RoutedEventArgs e)
         {
+            GlobalExceptionLogger.LogInfo("MainWindow.OnWindowLoaded - Starting window initialization...");
+            
             try
             {
                 var viewModel = DataContext as MainViewModel;
+                GlobalExceptionLogger.LogInfo($"MainWindow.OnWindowLoaded - ViewModel type: {viewModel?.GetType().Name ?? "NULL"}");
+                
                 if (viewModel != null)
                 {
                     // Obtener ActionLogger del MainViewModel
                     var actionLogger = viewModel.GetActionLogger();
+                    GlobalExceptionLogger.LogInfo($"MainWindow.OnWindowLoaded - ActionLogger obtained: {actionLogger != null}");
                     
                     // Buscar el DigitalControlPanel en el árbol visual y configurar el logger
                     var digitalPanel = FindVisualChild<DigitalControlPanel>(this);
+                    GlobalExceptionLogger.LogInfo($"MainWindow.OnWindowLoaded - DigitalControlPanel found: {digitalPanel != null}");
+                    
                     if (digitalPanel != null)
                     {
                         digitalPanel.SetActionLogger(actionLogger);
                         actionLogger?.LogUserAction("DigitalControlPanel Logger Connected", "Digital control panel now logging all operations");
+                        GlobalExceptionLogger.LogInfo("MainWindow.OnWindowLoaded - DigitalControlPanel logger configured");
                     }
                     
                     // CRITICAL FIX: Buscar AnalogControlPanel y configurar DataContext explícitamente
                     var analogPanel = FindVisualChild<AnalogControlPanel>(this);
+                    GlobalExceptionLogger.LogInfo($"MainWindow.OnWindowLoaded - AnalogControlPanel found: {analogPanel != null}");
+                    
                     if (analogPanel != null)
                     {
-                        System.Console.WriteLine("[MAINWINDOW] AnalogControlPanel found in visual tree");
                         analogPanel.DataContext = viewModel.AnalogControl;
-                        System.Console.WriteLine($"[MAINWINDOW] DataContext set to AnalogControl instance: {viewModel.AnalogControl.GetHashCode()}");
+                        GlobalExceptionLogger.LogInfo("MainWindow.OnWindowLoaded - AnalogControlPanel DataContext set");
                     }
                     else
                     {
-                        System.Console.WriteLine("[MAINWINDOW] AnalogControlPanel NOT found in visual tree at load time");
+                        GlobalExceptionLogger.LogWarning("MainWindow.OnWindowLoaded - AnalogControlPanel NOT found, subscribing to property changes");
                         // Subscribe to property changes to catch when panel is created dynamically
                         viewModel.PropertyChanged += (s, args) =>
                         {
@@ -61,18 +70,20 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Windows
                                     var panel = FindVisualChild<AnalogControlPanel>(this);
                                     if (panel != null && panel.DataContext == null)
                                     {
-                                        System.Console.WriteLine("[MAINWINDOW] Setting AnalogControlPanel DataContext after device selection");
                                         panel.DataContext = viewModel.AnalogControl;
-                                        System.Console.WriteLine($"[MAINWINDOW] DataContext set to AnalogControl instance: {viewModel.AnalogControl.GetHashCode()}");
+                                        GlobalExceptionLogger.LogInfo("MainWindow - AnalogControlPanel DataContext set dynamically after device selection");
                                     }
                                 }), System.Windows.Threading.DispatcherPriority.Loaded);
                             }
                         };
                     }
                 }
+                
+                GlobalExceptionLogger.LogInfo("MainWindow.OnWindowLoaded - Initialization completed successfully");
             }
             catch (Exception ex)
             {
+                GlobalExceptionLogger.LogCriticalError("MainWindow.OnWindowLoaded - Failed to initialize window", ex);
                 System.Diagnostics.Debug.WriteLine($"Error connecting logger: {ex.Message}");
             }
         }
@@ -96,22 +107,31 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.Windows
         
         private void OnWindowClosing(object sender, System.ComponentModel.CancelEventArgs e)
         {
+            GlobalExceptionLogger.LogInfo("MainWindow.OnWindowClosing - Starting cleanup...");
+            
             try
             {
                 // Liberar todos los recursos del ViewModel
                 var viewModel = DataContext as MainViewModel;
+                GlobalExceptionLogger.LogInfo($"MainWindow.OnWindowClosing - ViewModel type: {viewModel?.GetType().Name ?? "NULL"}");
+                
                 if (viewModel != null)
                 {
+                    GlobalExceptionLogger.LogInfo("MainWindow.OnWindowClosing - Disposing ViewModel...");
                     viewModel.Dispose();
+                    GlobalExceptionLogger.LogInfo("MainWindow.OnWindowClosing - ViewModel disposed successfully");
                 }
                 
-                // Forzar garbage collection para liberar recursos nativos
+                // Forzar recolección de basura para liberar recursos
+                GlobalExceptionLogger.LogInfo("MainWindow.OnWindowClosing - Forcing garbage collection...");
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
+                GlobalExceptionLogger.LogInfo("MainWindow.OnWindowClosing - Cleanup completed successfully");
+                GlobalExceptionLogger.LogInfo("=== APPLICATION SHUTDOWN COMPLETED ===");
             }
             catch (Exception ex)
             {
-                // Ignorar errores al cerrar - solo log si hay logger
+                GlobalExceptionLogger.LogCriticalError("MainWindow.OnWindowClosing - Error during cleanup", ex);
                 System.Diagnostics.Debug.WriteLine($"Error al cerrar: {ex.Message}");
             }
         }
