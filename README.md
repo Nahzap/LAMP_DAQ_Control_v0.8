@@ -89,65 +89,60 @@ Para activar el **modo diagnóstico** usando consola estricta (útil si requiere
 ## 🛠️ Arquitectura Técnica Resumida
 
 ```mermaid
-flowchart TB
-    %% Definición de Estilos Modernos
+flowchart TD
     classDef ui fill:#2b3a42,stroke:#3f80a6,stroke-width:2px,color:#fff,rx:5px,ry:5px
-    classDef doEngine fill:#38275c,stroke:#865cd6,stroke-width:2px,color:#fff,rx:5px,ry:5px
-    classDef memory fill:#1f422e,stroke:#39a363,stroke-width:2px,color:#fff,rx:5px,ry:5px
-    classDef hwAbstraction fill:#7d3e26,stroke:#ba6c54,stroke-width:2px,color:#fff,rx:5px,ry:5px
-    classDef hardware fill:#1a1a1a,stroke:#666,stroke-width:2px,color:#ddd,rx:5px,ry:5px
+    classDef doLayer fill:#38275c,stroke:#865cd6,stroke-width:2px,color:#fff,rx:5px,ry:5px
+    classDef hwLayer fill:#7d3e26,stroke:#ba6c54,stroke-width:2px,color:#fff,rx:5px,ry:5px
+    classDef physLayer fill:#1a1a1a,stroke:#666,stroke-width:2px,color:#ddd,rx:5px,ry:5px
 
-    %% Capa 1: Interface y Usuario
-    subgraph UI_Layer [Capa Visual y Control de Sesión]
+    %% --------- CAPA 1 ---------
+    subgraph L1 ["1. Capa de Presentación (UI & Logging)"]
         direction LR
-        WPF["Pantalla Principal WPF (MVVM)<br/>Interface de Línea de Tiempo"]:::ui
-        Console["Modo Terminal / Consola<br/>Modo Legacy de Diagnóstico"]:::ui
-        GlobalLog["TimestampedLogWriter<br/>Interceptor Global de Logs"]:::ui
+        WPF("Pantalla Principal WPF<br>(MVVM Timeline)"):::ui
+        Console("CLI Consola<br>(Modo Ligero)"):::ui
+        Log("Global Logger<br>(Intercepta Tiempos)"):::ui
     end
 
-    %% Capa 2: Motor de Ejecución Data-Oriented (El Corazón)
-    subgraph DO_Layer [Data-Oriented Execution Engine]
-        direction TB
-        SigTable[("SignalTable<br/>Memoria Contigua (Column Storage)")]:::memory
-        Engine["DataOrientedExecutionEngine<br/>Parallel Iterator & Master Scheduler"]:::doEngine
-        
-        %% Interacciones Internas
-        Engine -- "Lecturas Acopladas O(1)" --> SigTable
-        Engine -- "SpinWait (Zero Drift)<br/>Cálculos en Time Horizons Atómicos" --> Engine
-    end
-
-    %% Capa 3: Abstracción de Hardware y Pipelines
-    subgraph HW_Abstraction [DAQ Services & Caches]
+    %% --------- CAPA 2 ---------
+    subgraph L2 ["2. Data-Oriented Engine (CORE)"]
         direction LR
-        DAQCtrl["DAQController<br/>Enrutador de Tarjetas"]:::hwAbstraction
-        SigGen["SignalGenerator<br/>(Threading Priority + Hybrid Sleep)"]:::hwAbstraction
-        LUTCache[("Static LUT Cache<br/>Precálculo Trigonométrico CSV")]:::memory
+        Table[("SignalTable<br>Column Storage")]:::doLayer
+        Sched["Execution Engine<br>(Task.WhenAll + Barriers)"]:::doLayer
         
-        SigGen -- "Vectorización para<br/>Señales Analógicas" --> LUTCache
+        Sched -. "O(1) Memory Scan" .-> Table
     end
 
-    %% Capa 4: Tarjetas Físicas
-    subgraph Hardware [Hardware Advantech Serie PCIe / PCI]
+    %% --------- CAPA 3 ---------
+    subgraph L3 ["3. Abstracción DAQ (Hardware Services)"]
         direction LR
-        BDaq["Librería Advantech.BDaq"]:::hardware
-        PCIe1824["Tarjeta PCIe-1824<br/>(Generación Analógica Alta Densidad)"]:::hardware
-        PCI1735["Tarjeta PCI-1735U<br/>(E/S Digitales Fast PulseTrain)"]:::hardware
+        Ctrl["DAQController<br>(Enrutador Board-to-Board)"]:::hwLayer
+        Gen["SignalGenerator<br>(Alta Prioridad + SpinWait)"]:::hwLayer
+        LUT[("LUT Caché Array<br>(Pre-Cálculos CSV)")]:::hwLayer
         
-        BDaq -- "Firmware Call" --> PCIe1824
-        BDaq -- "Firmware Call" --> PCI1735
+        Gen -. "Lectura Estática O(1)" .-> LUT
+        Ctrl --> Gen
     end
 
-    %% Conexiones Globales de la Arquitectura
-    WPF -- "Envía comandos Start/Stop" --> Engine
-    Console -- "Señales de CLI Args" --> Engine
-    Engine -. "Desvía mensajes a Disco" .-> GlobalLog
+    %% --------- CAPA 4 ---------
+    subgraph L4 ["4. Hardware Advantech Físico"]
+        direction LR
+        Api["BDaq API Nativas"]:::physLayer
+        Card1("PCIe-1824<br>(Analógica ±10V)"):::physLayer
+        Card2("PCI-1735U<br>(Digital Fast IO)"):::physLayer
+        
+        Api --> Card1
+        Api --> Card2
+    end
+
+    %% --------- FLUJOS VERTICALES DIRECTOS ---------
+    WPF ==>|"Start/Stop/Edit Commands"| Sched
+    Console ==>|"CLI Args"| Sched
+    Sched -.->|"Eventos de Estado"| Log
     
-    Engine -- "Despacho Paralelo <br/>Task.WhenAll + Sync Barriers" --> DAQCtrl
+    Sched ==>|"Despacho Múltiple Atómico"| Ctrl
     
-    DAQCtrl -- "Subdelega Frecuencias<br/>Altas Continuas" --> SigGen
-    DAQCtrl -- "Delega Rutinas Digitales" --> BDaq
-    
-    SigGen -- "Write Pipeline de Grado Estricto" --> BDaq
+    Gen ==>|"Alta Precisión Real-Time"| Api
+    Ctrl ==>|"Lecturas Lentas Standard"| Api
 ```
 
 ### Notas sobre el `SignalGenerator` (Corazón de Timming):
