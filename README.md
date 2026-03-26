@@ -100,3 +100,17 @@ Toda auditoría técnica exhaustiva, diagramas arquitectónicos de transición, 
 
 ## Licencia y Soporte
 Desarrollado y ajustado para operaciones especializadas Multi-Canal High-Speed. Ante dudas de estabilidad, consulte la carpeta `/logs/` que guardará instantáneas segundo a segundo del buffer.
+
+## 🔬 Laboratory & Development Team
+
+This advanced DAQ control architecture is proudly engineered by **LAMP** (Laboratory of Atomic and Molecular Physics).
+
+📍 **Location:**  
+Facultad de Ciencias Físicas y Matemáticas, **Universidad de Concepción** (UdeC)  
+Región del Biobío, Chile.
+
+👨‍🔬 **Project Members:**
+- **Project Lead:** Dr. Pablo Solano Palma
+- **Lead Developer/Engineer:** MSc. Rodrigo Jofré Cerda ✉️ [rodrigojofre@udec.cl](mailto:rodrigojofre@udec.cl)
+
+*March 26, 2026.*
