@@ -90,59 +90,61 @@ Para activar el **modo diagnóstico** usando consola estricta (útil si requiere
 
 ```mermaid
 flowchart TD
-    classDef ui fill:#2b3a42,stroke:#3f80a6,stroke-width:2px,color:#fff,rx:5px,ry:5px
-    classDef doLayer fill:#38275c,stroke:#865cd6,stroke-width:2px,color:#fff,rx:5px,ry:5px
-    classDef hwLayer fill:#7d3e26,stroke:#ba6c54,stroke-width:2px,color:#fff,rx:5px,ry:5px
-    classDef physLayer fill:#1a1a1a,stroke:#666,stroke-width:2px,color:#ddd,rx:5px,ry:5px
+    %% -- Architectural Styling --
+    classDef ui fill:#1F2937,stroke:#3B82F6,stroke-width:2px,color:#FFF,rx:8px,ry:8px
+    classDef core fill:#4C1D95,stroke:#8B5CF6,stroke-width:2px,color:#FFF,rx:8px,ry:8px
+    classDef cache fill:#064E3B,stroke:#10B981,stroke-width:2px,color:#FFF,rx:8px,ry:8px
+    classDef service fill:#7C2D12,stroke:#F97316,stroke-width:2px,color:#FFF,rx:8px,ry:8px
+    classDef device fill:#171717,stroke:#A3A3A3,stroke-width:2px,color:#D4D4D4,rx:8px,ry:8px
 
-    %% --------- CAPA 1 ---------
-    subgraph L1 ["1. Capa de Presentación (UI & Logging)"]
+    %% --- L1: UI / APP TIER ---
+    subgraph L1 [1. Presentation & Logging Tier]
         direction LR
-        WPF("Pantalla Principal WPF<br>(MVVM Timeline)"):::ui
-        Console("CLI Consola<br>(Modo Ligero)"):::ui
-        Log("Global Logger<br>(Intercepta Tiempos)"):::ui
+        UI["WPF Main Window<br>(Interactive Timeline)"]:::ui
+        CLI["Console Mode<br>(Diagnostic Execution)"]:::ui
+        Logger["TimestampedLogWriter<br>(System Diagnostics)"]:::ui
     end
 
-    %% --------- CAPA 2 ---------
-    subgraph L2 ["2. Data-Oriented Engine (CORE)"]
+    %% --- L2: DATA-ORIENTED CORE ---
+    subgraph L2 [2. Data-Oriented Core Engine]
         direction LR
-        Table[("SignalTable<br>Column Storage")]:::doLayer
-        Sched["Execution Engine<br>(Task.WhenAll + Barriers)"]:::doLayer
+        Table[("SignalTable<br>(Contiguous Column Memory)")]:::cache
+        Engine["Execution Scheduler<br>(Task.WhenAll + Sync Barriers)"]:::core
         
-        Sched -. "O(1) Memory Scan" .-> Table
+        Engine -. "O(1) Hot-Loop Scans" .-> Table
     end
 
-    %% --------- CAPA 3 ---------
-    subgraph L3 ["3. Abstracción DAQ (Hardware Services)"]
+    %% --- L3: HARDWARE ABSTRACTION ---
+    subgraph L3 [3. Hardware Abstraction Services]
         direction LR
-        Ctrl["DAQController<br>(Enrutador Board-to-Board)"]:::hwLayer
-        Gen["SignalGenerator<br>(Alta Prioridad + SpinWait)"]:::hwLayer
-        LUT[("LUT Caché Array<br>(Pre-Cálculos CSV)")]:::hwLayer
+        Ctrl["DAQController<br>(Board Routing Hub)"]:::service
+        SigGen["SignalGenerator<br>(SpinWait / Absolute Time Horizons)"]:::service
+        LUT[("LUT Array Cache<br>(CSV Pre-Computed Waves)")]:::cache
         
-        Gen -. "Lectura Estática O(1)" .-> LUT
-        Ctrl --> Gen
+        SigGen -. "Static O(1) Reads" .-> LUT
+        Ctrl --> SigGen
     end
 
-    %% --------- CAPA 4 ---------
-    subgraph L4 ["4. Hardware Advantech Físico"]
+    %% --- L4: PHYSICAL HARDWARE ---
+    subgraph L4 [4. Native Advantech Hardware]
         direction LR
-        Api["BDaq API Nativas"]:::physLayer
-        Card1("PCIe-1824<br>(Analógica ±10V)"):::physLayer
-        Card2("PCI-1735U<br>(Digital Fast IO)"):::physLayer
+        API["BDaq API Driver<br>(Advantech.BDaq.dll)"]:::device
+        PCIe1824("PCIe-1824<br>(High-Speed Analog ±10V)"):::device
+        PCI1735("PCI-1735U<br>(Digital IO / Pulse Trains)"):::device
         
-        Api --> Card1
-        Api --> Card2
+        API --> PCIe1824
+        API --> PCI1735
     end
 
-    %% --------- FLUJOS VERTICALES DIRECTOS ---------
-    WPF ==>|"Start/Stop/Edit Commands"| Sched
-    Console ==>|"CLI Args"| Sched
-    Sched -.->|"Eventos de Estado"| Log
+    %% --- INTER-LAYER VERTICAL COMMUNICATION ---
+    UI ==>|"Play / Stop Lifecycle"| Engine
+    CLI ==>|"Args Initialization"| Engine
+    Engine -.->|"State & Error Broadcast"| Logger
     
-    Sched ==>|"Despacho Múltiple Atómico"| Ctrl
+    Engine ==>|"Atomic Parallel Dispatch"| Ctrl
     
-    Gen ==>|"Alta Precisión Real-Time"| Api
-    Ctrl ==>|"Lecturas Lentas Standard"| Api
+    SigGen ==>|"Nanosecond Real-Time Writes"| API
+    Ctrl ==>|"Standard R/W Polling"| API
 ```
 
 ### Notas sobre el `SignalGenerator` (Corazón de Timming):
