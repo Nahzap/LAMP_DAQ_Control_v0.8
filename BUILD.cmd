@@ -21,18 +21,18 @@ REM Restaurar paquetes NuGet
 echo.
 
 REM Limpiar
-"%MSBUILD%" "%~dp0LAMP_DAQ_Control_v0.8.csproj" /t:Clean /p:Configuration=Debug
+"%MSBUILD%" "%~dp0LAMP_DAQ_Control_v0.8.csproj" /t:Clean /p:Configuration=Release
 echo.
 
 REM Compilar
-"%MSBUILD%" "%~dp0LAMP_DAQ_Control_v0.8.csproj" /t:Build /p:Configuration=Debug /v:minimal
+"%MSBUILD%" "%~dp0LAMP_DAQ_Control_v0.8.csproj" /t:Build /p:Configuration=Release /v:minimal
 
 if %ERRORLEVEL% EQU 0 (
     echo.
     echo ==========================================
-    echo COMPILACION EXITOSA
+    echo COMPILACION EXITOSA (RELEASE MODE)
     echo ==========================================
-    echo Ejecutable: %~dp0bin\Debug\LAMP_DAQ_Control_v0.8.exe
+    echo Ejecutable: %~dp0bin\Release\LAMP_DAQ_Control_v0.8.exe
 ) else (
     echo.
     echo ==========================================

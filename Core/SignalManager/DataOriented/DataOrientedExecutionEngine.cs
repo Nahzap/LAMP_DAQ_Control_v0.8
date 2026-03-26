@@ -145,12 +145,12 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                         // CRITICAL: Clean up hardware between loop iterations
                         CleanupBetweenLoopIterations();
                         
-                        // Brief delay for UI to update
+                        // Brief delay to prevent hardware locking and allow clean restart
                         await Task.Delay(50);
                         
-                        // Reset state for next iteration
-                        State = ExecutionState.Idle;
+                        // Reset time for next iteration but KEEP State = Running to prevent UI flicker
                         CurrentTime = TimeSpan.Zero;
+                        OnEventExecuted(new EventExecutedEventArgs { Event = null, ActualTime = TimeSpan.Zero });
                         
                         // Dispose current CTS before next iteration creates a new one
                         _cts?.Dispose();
@@ -165,8 +165,10 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     {
                         await Task.Delay(100);
                         State = ExecutionState.Idle;
+                        OnStateChanged(ExecutionState.Idle);
                         CurrentTime = TimeSpan.Zero;
-                        System.Console.WriteLine("[DO EXEC ENGINE] Execution completed");
+                        System.Console.WriteLine("[DO EXEC ENGINE] Execution completed - stopping hardware");
+                        StopAllSignalGenerators();
                     }
                 }
                 catch (OperationCanceledException)
@@ -199,6 +201,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                         _cts?.Dispose();
                         _cts = null;
                         State = ExecutionState.Idle;
+                        OnStateChanged(ExecutionState.Idle);
                         CurrentTime = TimeSpan.Zero;
                     }
                 }
@@ -275,7 +278,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     bool isLongRunning = (eventType == SignalEventType.PulseTrain ||
                                           eventType == SignalEventType.DC ||
                                           eventType == SignalEventType.DigitalState ||
-                                          eventType == SignalEventType.DigitalPulse);
+                                          eventType == SignalEventType.DigitalPulse ||
+                                          eventType == SignalEventType.Ramp);
                     
                     var task = Task.Run(() => ExecuteEventAtIndexAsync(table, capturedIndex, exactSyncHorizonNs, cancellationToken), cancellationToken);
                     
@@ -522,38 +526,42 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     System.Console.WriteLine($"[DO PULSE TRAIN] SW Freq: {swFreq}Hz, HighTicks: {highTimeTicks}, LowTicks: {lowTimeTicks}");
                     
                     // HIGH-PRECISION pulse train loop using SpinWait instead of Task.Delay
-                    // Task.Delay has ~15ms minimum resolution on Windows - useless for >60Hz signals
+                    // Usamos tiempo absoluto (zero cumulative error) para garantizar exactamente la frecuencia pedida
                     var pulseTimer = System.Diagnostics.Stopwatch.StartNew();
+                    long startTicks = pulseTimer.ElapsedTicks;
                     long cycleCount = 0;
+                    
+                    // Pre-calculamos los horizontes absolutos del primer ciclo
+                    long periodTicks = highTimeTicks + lowTimeTicks;
+                    long nextHighEndTicks = startTicks + highTimeTicks;
+                    long nextLowEndTicks = startTicks + periodTicks;
                     
                     while (!cancellationToken.IsCancellationRequested)
                     {
-                        long elapsedNs = (long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds);
-                        if (elapsedNs >= endTimeNs) break;
+                        if ((long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds) >= endTimeNs) break;
                         
                         // HIGH phase
                         controller.WriteDigitalBit(portPT, bitPT, true);
-                        long phaseStart = pulseTimer.ElapsedTicks;
-                        while (pulseTimer.ElapsedTicks - phaseStart < highTimeTicks)
+                        while (pulseTimer.ElapsedTicks < nextHighEndTicks)
                         {
                             if (cancellationToken.IsCancellationRequested) break;
                             System.Threading.Thread.SpinWait(1);
                         }
                         
-                        // Check if we should continue
-                        elapsedNs = (long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds);
-                        if (elapsedNs >= endTimeNs) break;
+                        if ((long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds) >= endTimeNs) break;
                         
                         // LOW phase
                         controller.WriteDigitalBit(portPT, bitPT, false);
-                        phaseStart = pulseTimer.ElapsedTicks;
-                        while (pulseTimer.ElapsedTicks - phaseStart < lowTimeTicks)
+                        while (pulseTimer.ElapsedTicks < nextLowEndTicks)
                         {
                             if (cancellationToken.IsCancellationRequested) break;
                             System.Threading.Thread.SpinWait(1);
                         }
                         
                         cycleCount++;
+                        // Calculamos estrictamente desde el origen (cero error acumulado)
+                        nextHighEndTicks = startTicks + (cycleCount * periodTicks) + highTimeTicks;
+                        nextLowEndTicks = startTicks + ((cycleCount + 1) * periodTicks);
                     }
                     
                     // Ensure LOW at end
@@ -697,8 +705,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private async Task HighPrecisionWaitAsync(long waitNs, CancellationToken cancellationToken)
         {
-            const long SPIN_THRESHOLD_NS = 10_000_000; // 10ms - below this, use SpinWait
-            const long COARSE_WAIT_THRESHOLD_NS = 2_000_000; // 2ms - margin for Task.Delay imprecision
+            // Windows Task.Delay tiene una variabilidad real de 15.6ms en la mayoría de sus kernels
+            const long SPIN_THRESHOLD_NS = 20_000_000; // 20ms - si es menor, quemar CPU para precisión atómica
+            const long COARSE_WAIT_THRESHOLD_NS = 5_000_000; // 5ms - margen de Oversleep seguro
             
             long targetTicks = _executionTimer.ElapsedTicks + (long)(waitNs / _ticksToNanoseconds);
             

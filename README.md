@@ -1,278 +1,125 @@
-# LAMP DAQ Control v0.8
+# LAMP DAQ Control v0.8 (Data-Oriented Edition)
 
-Controlador para tarjetas de adquisición de datos (DAQ) PCIe-1824 y PCI-1735U con interfaz visual WPF, **Signal Manager avanzado** y monitoreo en tiempo real.
+Controlador Top-Tier y Plataforma de Ejecución Real-Time para tarjetas de adquisición de datos (DAQ) **Advantech PCIe-1824** y **PCI-1735U**. Diseñado con una interfaz visual WPF moderna y un motor de ejecución de señales **Data-Oriented (DO)** de latencia cero, ideal para aplicaciones científicas e industriales de grado estricto.
 
-## 🎯 Descripción
+## 🎯 Objetivo del Sistema
 
-Este software permite controlar las tarjetas de adquisición de datos Advantech PCIe-1824 y PCI-1735U desde una **interfaz visual moderna** o consola. Incluye funcionalidades para:
+Proveer una solución centralizada de alto rendimiento que permita el pilotaje preciso, la sincronización microsegundo y la generación paralela de secuencias de control analógicas y digitales masivas, abstrayendo las complejidades del hardware Advantech DAQNavi bajo una UX amigable tipo "Línea de Tiempo" (Timeline).
 
-- **PCIe-1824**:
-  - Generación de señales analógicas de alta precisión usando tablas de búsqueda (LUT)
-  - Establecimiento de valores DC en canales analógicos
-  - Realización de rampas de voltaje
-  - Control de múltiples canales analógicos
+## 🚀 Características Principales y Capacidades
 
-- **PCI-1735U**:
-  - Control de E/S digitales (32 canales en total)
-  - Operaciones de lectura/escritura digital
-  - Configuración de contadores programables
-  - Control de temporización y conteo de eventos
+### 1. 🆕 Data-Oriented Execution Engine (DOD)
+La versión 0.8 abandonó la antigua arquitectura de objetos instanciados para adoptar un núcleo **Cache-Friendly** y **Column-Oriented**:
+- **Zero Cumulative Error**: Uso de Time Horizons absolutos atados a ticks de procesador (QPC) que previenen la deriva temporal matemática observada habitualmente en el Kernel de Windows.
+- **Micro-Sleeps Híbridos**: Algoritmo `HighPrecisionWaitAsync` que intercala inteligentemente `Task.Delay` y `SpinWait` bloqueando el cese al SO si los tiempos son <20ms para alcanzar precisión Atómica.
+- **Ejecución Totalmente Paralela (Task.WhenAll)**: Múltiples Waveforms, Rampas y Trenes de Pulso se despachan y sincronizan de forma paralela usando `Barrier` para levantar decenas de transistores en la DAQ con diferencias de fase nulas.
 
-- **🆕 Signal Manager (v0.8)**:
-  - **Arquitectura Data-Oriented Design (DOD)** - Cache-friendly, SIMD-ready
-  - Editor visual de secuencias con timeline interactivo
-  - Ejecución paralela de eventos simultáneos (Task.WhenAll)
-  - Timing de alta precisión (±100μs) con Stopwatch + SpinWait
-  - Drag & drop entre canales con validación de tipos
-  - Soporte multi-dispositivo (PCIe-1824 + PCI-1735U simultáneos)
+### 2. Controladores de Hardware Potenciados
+#### Advantech PCIe-1824 (High-Density Analog Output)
+- **Generación Vectorizada de Waveforms**: Utiliza Tablas de Búsqueda (LUTs CSV) en caché para renderizar ondas sinodales sin calcular matemáticas trigonométricas en caliente.
+- Salidas escalables DC y Rampas Analógicas suaves.
+- Capacidad operativa asíncrona por canal independiente (Voltage range: ±10V).
+- Cero Jittering (retardo) perceptivo entre reinicios de secuencias (Looping).
 
-## Características
+#### Advantech PCI-1735U (High-Speed Digital I/O)
+- 32 canales de Entrada/Salida Digital (Port 0-3 bit-a-bit).
+- **Trenes de Pulsos Súper Rápidos (PulseTrain)**: Exactitud absoluta desde 1Hz hasta barreras del Framework y Hardware, ideal para control de steppers, activaciones de láser y triggers TTL.
 
-### Para PCIe-1824
-- **Salidas analógicas** de alta precisión
-- **Generación de señales** con precisión mejorada mediante LUTs de 65536 puntos
-- **Caché estático de LUT** (carga una sola vez, elimina jitter de I/O)
-- **Jitter < 2ms** en transiciones de loop (antes ~20ms)
-- **Configuración flexible** de parámetros editables en GUI (frecuencia, amplitud, offset)
-- **Soporte para múltiples canales** analógicos con generación paralela real
+### 3. Workflow Moderno Visual (WPF Timeline)
+- **Editor tipo NLE (Non-Linear Editor)**: Drag & Drop nativo. Permite arrojar eventos, waveforms y estados a canales y organizarlos espacialmente.
+- **Zoom Dinámico**: Renderizado inteligente que permite escalar visualmente de segundos a milisegundos y viceversa.
+- **Panel de Propiedades en Vivo**: Modificación de Amplitudes, Offset, y Periodos "Live".
 
-### Para PCI-1735U
-- **32 canales digitales** (4 puertos de 8 bits)
-- **Operaciones de E/S digital** rápidas y confiables
-- **3 contadores** para aplicaciones de temporización y conteo
-- **Configuración flexible** de polaridad de señales
+### 4. Robustez y Mantenibilidad de Producción
+- **Global Exception Logger**: Un inyector global interviene la consola (incluso capturando mensajes legacy del Hardware BDaq) incrustando *timestamps* estandarizados.
+- **Auto-Session Cleanup**: Sistema inteligente de registros guardados persistentemente bajo `/logs/` que garantizan auditoría pura después de los tests.
 
-### Características Generales
-- **Interfaz de consola** intuitiva y fácil de usar
-- **Reinicio seguro** de todos los canales a 0V
-- **Manejo de errores** robusto con mensajes descriptivos
+---
 
-### 🆕 Signal Manager - Editor de Secuencias (v0.8)
+## Tipos de Señales Soportadas
 
-#### Arquitectura Data-Oriented Design (DOD)
-- **Column-oriented storage**: Arrays contiguos para máxima eficiencia de cache
-- **Separation of concerns**: Datos (`SignalTable`) separados de lógica (`SignalOperations`)
-- **SIMD-ready**: Estructuras preparadas para vectorización futura
-- **O(1) operations**: Lookup, insert, update y delete en tiempo constante
+| Tipo de Evento | Dominio | Descripción | Ajustes en Vivo |
+|----------------|---------|-------------|-----------------|
+| **Ramp** | Analógico | Transición suave entre puntos de voltaje | Volts (Start, End), Duration |
+| **DC** | Analógico | Sostenimiento constante de tensión | Voltage (0-10V), Duration |
+| **Waveform** | Analógico | Inyección Trigonométrica periódica | Frequency (Hz), Amplitude, Offset, Duration |
+| **PulseTrain** | Digital | Ráfaga de oscilación binaria continua | Frecuencia alta (Hz), Duty Cycle (%) |
+| **Digital Pulse** | Digital | Establece un puerto/bit a Estado Alto o Bajo | True/False, Duration |
 
-#### Editor Visual de Timeline
-- **Drag & drop intuitivo**: Arrastra eventos desde biblioteca a canales
-- **Multi-canal**: Edita múltiples canales simultáneamente (Analog + Digital)
-- **Zoom dinámico**: Ctrl + Mouse Wheel para precisión temporal
-- **Snap to grid**: Alineación automática a intervalos de 100ms
-- **Validación en tiempo real**: Detecta conflictos y parámetros inválidos
+---
 
-#### Ejecución de Alta Precisión
-- **Timing sub-millisegundo**: ±100μs de precisión usando Stopwatch + SpinWait
-- **Ejecución paralela**: Eventos simultáneos ejecutan en paralelo real (Task.WhenAll)
-- **Multi-dispositivo**: Control simultáneo de PCIe-1824 y PCI-1735U
-- **Looping**: Repetición automática de secuencias
+## 📦 Requisitos y Setup
 
-#### Tipos de Eventos Soportados
-| Tipo | Descripción | Parámetros Editables |
-|------|-------------|----------------------|
-| **Ramp** | Rampa de voltaje | Start Voltage (0-10V), End Voltage (0-10V), Duration |
-| **DC** | Nivel DC constante | Voltage (0-10V), Duration |
-| **Waveform** | Señal senoidal | **Frequency (Hz)**, **Amplitude (0-10V)**, **Offset DC (0-10V)**, Duration |
-| **Digital Pulse** | Pulso digital | Port (0-3), Bit (0-7), Duration |
+### Requisitos del Sistema
+- **Sistema Operativo**: Windows 10/11 (x86/x64). Windows forzado por drivers y Threading.
+- **.NET Framework**: v4.7.2 o superior.
+- **Hardware Físico**: Advantech PCIe-1824, Advantech PCI-1735U y cableado BNC/Borneras correspondiente.
+- **Software**: Drivers nativos Advantech DAQNavi instalados.
 
-**Todos los parámetros son editables en tiempo real desde el Event Details panel y se reflejan automáticamente en la tabla de eventos.**
-
-#### Mejoras Recientes (17-Mar-2026)
-- ✅ **NEW**: Controles editables para Frequency, Amplitude, Offset en GUI
-- ✅ **NEW**: Tabla de eventos expandida con parámetros completos (Vmin, Vmax, N/A)
-- ✅ **PERFORMANCE**: Caché estático de LUT CSV (elimina 10-15ms de jitter por loop)
-- ✅ **PERFORMANCE**: Scheduler optimizado 1ms (antes 10ms, -90% jitter)
-- ✅ **FIX**: Generación de waveforms sin saltos horizontales en loops
-
-## Requisitos del Sistema
-
-- **Sistema Operativo**: Windows 7/8/10/11 (x86/x64)
-- **.NET Framework**: 4.7.2 o superior
-- **Hardware**: 
-  - Tarjeta Advantech PCIe-1824 y/o PCI-1735U instaladas
-  - Drivers de Advantech DAQNavi instalados
-  - Alimentación adecuada para los canales analógicos y digitales
-
-## 📦 Instalación
-
-1. Asegúrese de tener instalados los drivers de **Advantech DAQNavi** para ambas tarjetas
-2. Instale **.NET Framework 4.7.2** o superior si no está presente
-3. Clone o descargue este repositorio
-4. **Compile el proyecto** (ver sección Compilación)
-5. Los archivos de perfil se copian automáticamente al directorio del ejecutable
-
-## 🔨 Compilación
-
-### Opción 1: Script de PowerShell (Recomendado)
+### Compilación Rápida (Recomendado)
+Para compilar en la máquina de control empleando MSBuild nativo, ejecutar el script:
 ```powershell
-.\Build.ps1
+.\BUILD.cmd
+# Ejecuta MSBuild internamente bajo configuración Release
 ```
+> ⚠️ **NO se debe** usar `dotnet build` ya que WPF bajo .NET Framework no es portado en ese CLI.
 
-### Opción 2: MSBuild Manual
-```powershell
-# Buscar MSBuild
-$msbuild = Get-ChildItem "C:\Program Files\" -Recurse -Filter "MSBuild.exe" | 
-            Where-Object { $_.FullName -like "*\Current\Bin\MSBuild.exe" } | 
-            Select-Object -First 1
+Al finalizar, el binario caerá en la carpeta `/bin/Release/`.
 
-# Compilar
-& $msbuild.FullName "LAMP_DAQ_Control_v0.8.sln" /t:Rebuild /p:Configuration=Release
+---
+
+## 🚀 Uso Rápido y Ejecución
+
+La herramienta de control cuenta con archivos Batch de inicio rápido (`.bat`) pre-configurados para ejecutar automáticamente los binarios generados bajo máxima optimización (Release).
+
+Puedes arrancar la interfaz gráfica tipo Timeline usando:
+```cmd
+.\EJECUTAR_WPF.bat
 ```
+*(Inicia el motor Data-Oriented junto a la interfaz gráfica completa).*
 
-**⚠️ IMPORTANTE:** NO use `dotnet build` - no es compatible con WPF en .NET Framework.
-
-## 🚀 Uso
-
-### Modo Visual (WPF) - Por defecto
-```powershell
-.\Run.ps1
-# o directamente:
-.\bin\Release\LAMP_DAQ_Control_v0.8.exe
+Para activar el **modo diagnóstico** usando consola estricta (útil si requieres interactuar sin las capas de UI o si te conectas vía Terminal/SSH):
+```cmd
+.\EJECUTAR.bat
 ```
+*(Llama tácitamente al ejecutable usando `-console` flag).*
 
-### Modo Consola (Retrocompatible)
-```powershell
-.\Run.ps1 -Console
-# o directamente:
-.\bin\Release\LAMP_DAQ_Control_v0.8.exe -console
-```
+---
 
-## 🎨 Características de la Interfaz Visual
+## 🛠️ Arquitectura Técnica Resumida
 
-### Panel de Control Analógico (PCIe-1824):
-
-### Para PCIe-1824:
-   - **1. Establecer valor DC**: Fija un voltaje constante en un canal
-   - **2. Realizar rampa**: Ejecuta una rampa de voltaje en un canal
-   - **3. Generar señal senoidal**: Inicia la generación de una señal senoidal
-   - **4. Detener generación**: Detiene la señal generada actualmente
-
-### Para PCI-1735U:
-   - **1. Leer entrada digital**: Lee el estado de un canal de entrada
-   - **2. Escribir salida digital**: Establece el estado de un canal de salida
-   - **3. Configurar contador**: Configura los parámetros del contador
-   - **4. Leer contador**: Lee el valor actual del contador
-
-### Opciones Comunes:
-   - **5. Mostrar información**: Muestra información del dispositivo DAQ
-   - **6. Reiniciar canales**: Pone todos los canales a 0V o estado bajo
-   - **7. Cambiar dispositivo**: Cambia entre los dispositivos disponibles
-   - **8. Salir**: Cierra la aplicación
-
-## Estructura del Proyecto
-
-- **Core/**: Contiene las clases principales de la aplicación
-  - **DAQ/**: Contiene los componentes modulares del sistema DAQ
-    - **Interfaces/**: Interfaces para los componentes del sistema
-    - **Managers/**: Gestores de dispositivos, perfiles y canales
-      - `DeviceManager.cs`: Gestiona la detección e inicialización de dispositivos
-      - `ProfileManager.cs`: Gestiona perfiles de configuración
-      - `ChannelManager.cs`: Gestiona operaciones de canales
-    - **Services/**: Servicios de generación de señales y utilidades
-      - `SignalGenerator.cs`: Genera señales analógicas optimizadas (PCIe-1824)
-      - `SignalLUT.cs`: Maneja la generación y acceso a tablas de búsqueda
-  - `DAQController.cs`: Controlador principal que coordina los componentes
-- **UI/**: Contiene la interfaz de usuario
-  - `ConsoleUI.cs`: Implementa la interfaz de consola
-
-## Configuración
-
-Los siguientes archivos de configuración deben estar en el mismo directorio que el ejecutable:
-
-- `PCIe1824_prof_v1.xml`: Configuración de la tarjeta PCIe-1824
-- `PCI1735U_prof_v1.xml`: Configuración de la tarjeta PCI-1735U
-
-## Solución de Problemas
-
-### PCIe-1824
-- **Error al cargar el perfil**: Verifique que el archivo `PCIe1824_prof_v1.xml` esté presente
-- **Valores fuera de rango**: Los voltajes deben estar dentro del rango soportado (±10V)
-
-### PCI-1735U
-- **Error de comunicación**: Verifique que la tarjeta esté correctamente instalada
-- **Canales no responden**: Verifique la configuración de E/S en `PCI1735U_prof_v1.xml`
-- **Contadores no funcionan**: Verifique las conexiones de reloj y compuerta
-
-### Problemas Comunes
-- **Dispositivo no encontrado**: Asegúrese de que los drivers estén correctamente instalados
-- **Error de permisos**: Ejecute la aplicación como administrador
-
-## Licencia
-
-Este software es propiedad de [Nombre de la Empresa/Institución]. Todos los derechos reservados.
-
-## Contacto
-
-Para soporte o preguntas, contacte a [correo de contacto].
-
-
-## MMD:
 ```mermaid
 flowchart TD
-    %% Capa de Entrada
-    Program["Program.cs<br>(Entry Point)"]:::entryPoint
-
-    %% Capa de Presentación
-    ConsoleUI["ConsoleUI.cs<br>(UI Layer)"]:::ui
-
-    %% Capa de Control
-    DAQController["DAQController.cs<br>(Core Layer)"]:::core
-
-    %% Capa de Abstracción (Interfaces)
-    subgraph Interfaces["Interfaces Layer"]
-        IDeviceManager["IDeviceManager"]:::interfaces
-        IChannelManager["IChannelManager"]:::interfaces
-        IProfileManager["IProfileManager"]:::interfaces
-        ISignalGenerator["ISignalGenerator"]:::interfaces
-        ILogger["ILogger"]:::interfaces
+    %% Sistema Base
+    Program["Program.cs (WPF / Console)"]:::entryPoint
+    
+    %% Engine Data-Oriented
+    subgraph DataOriented["Data-Oriented Execution Engine"]
+        SignalTable["SignalTable (Column Storage)"]:::core
+        DOEngine["DataOrientedExecutionEngine"]:::core
+        DOEngine -- Lee memoria atómica --> SignalTable
     end
 
-    %% Capa de Implementación
-    subgraph Managers["Managers Layer"]
-        ProfileManager["ProfileManager"]:::managers
-        ChannelManager["ChannelManager"]:::managers
-        DeviceManager["DeviceManager"]:::managers
+    %% Capa de Abstracción DAQ
+    subgraph Services["DAQ Services & Hardware"]
+        DAQController["DAQController"]:::services
+        SignalGen["SignalGenerator (LUT Cache + SpinWait)"]:::services
+        AdvDev["Advantech.BDaq (PCI/PCIe)"]:::external
     end
 
-    subgraph Services["Services Layer"]
-        SignalGenerator["SignalGenerator"]:::services
-        ConsoleLogger["ConsoleLogger"]:::services
-    end
+    Program --> DataOriented
+    DOEngine --> DAQController
+    DAQController --> SignalGen
+    SignalGen -.-> AdvDev
+```
 
-    %% Capa de Modelo
-    subgraph Models["Models Layer"]
-        ChannelState["ChannelState"]:::models
-        DeviceInfo["DeviceInfo"]:::models
-    end
+### Notas sobre el `SignalGenerator` (Corazón de Timming):
+Este módulo fue reescrito para pre-cargar estructuras asíncronas de alto rendimiento y manejar Thread Priorities a tope (`ThreadPriority.Highest`). Las fases son forzadas a sincronización de Reloj Real empleando estructuras subyacentes libres de bloqueos pesados como `SpinWait`. El GC (Garbage Collector) se exime casi por completo del loop principal.
 
-    %% Capa de Excepciones
-    subgraph Exceptions["Exceptions Layer"]
-        DAQInitializationException["DAQInitializationException"]:::exceptions
-    end
+---
 
-    %% Dependencias Externas
-    AutomationBDaq["Automation.BDaq<br>(External Library)"]:::external
+## Directorio Activo de Documentación
+Toda auditoría técnica exhaustiva, diagramas arquitectónicos de transición, y reportes de investigación de "Jitter" se almacenan en la carpeta `/Docs/`. Si necesitas trazar los Fixes referidos a nanosegundos y Oversleep del OS Windows revisa en particular el documento: `DATA_ORIENTED_SYNC_FIX_2026-03-26_153500.md`. 
 
-    %% Relaciones
-    Program --> DAQController
-    Program --> ConsoleUI
-    ConsoleUI --> DAQController
-
-    DAQController --> IDeviceManager
-    DAQController --> IChannelManager
-    DAQController --> IProfileManager
-    DAQController --> ISignalGenerator
-    DAQController --> ILogger
-
-    IDeviceManager --> DeviceManager
-    IChannelManager --> ChannelManager
-    IProfileManager --> ProfileManager
-    ISignalGenerator --> SignalGenerator
-    ILogger --> ConsoleLogger
-
-    DeviceManager --> AutomationBDaq
-    SignalGenerator --> AutomationBDaq
-
-    DeviceManager --> DeviceInfo
-    ChannelManager --> ChannelState
+## Licencia y Soporte
+Desarrollado y ajustado para operaciones especializadas Multi-Canal High-Speed. Ante dudas de estabilidad, consulte la carpeta `/logs/` que guardará instantáneas segundo a segundo del buffer.

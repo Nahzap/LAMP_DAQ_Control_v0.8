@@ -340,8 +340,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         /// </summary>
         private async Task HighPrecisionWaitAsync(Stopwatch timer, long targetTicks)
         {
-            const long SPIN_THRESHOLD_TICKS = 100_000; // ~10ms threshold for spinning
-            const long TASK_DELAY_MARGIN_TICKS = 20_000; // ~2ms margin for Task.Delay imprecision
+            const long SPIN_THRESHOLD_TICKS = 200_000; // ~20ms threshold for spinning to prevent Windows oversleep
+            const long TASK_DELAY_MARGIN_TICKS = 50_000; // ~5ms margin for Task.Delay imprecision
             
             long remainingTicks = targetTicks - timer.ElapsedTicks;
             
