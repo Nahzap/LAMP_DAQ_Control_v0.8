@@ -261,6 +261,44 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Models
                         }
                     }
                     break;
+
+                case SignalEventType.PulseTrain:
+                    // Validate required parameters for TTL pulse train
+                    if (!Parameters.ContainsKey("frequency") || !Parameters.ContainsKey("dutyCycle"))
+                    {
+                        errorMessage = "PulseTrain event requires 'frequency' and 'dutyCycle' parameters.";
+                        return false;
+                    }
+
+                    // Validate frequency > 0
+                    if (Parameters["frequency"] <= 0)
+                    {
+                        errorMessage = "Frequency must be > 0 Hz.";
+                        return false;
+                    }
+
+                    // Validate duty cycle range: 1% to 100% (0.01 to 1.00)
+                    double dutyCycle = Parameters["dutyCycle"];
+                    if (dutyCycle < 0.01 || dutyCycle > 1.00)
+                    {
+                        errorMessage = $"Duty cycle must be between 0.01 (1%) and 1.00 (100%). Current value: {dutyCycle:F2}";
+                        return false;
+                    }
+
+                    // Validate vHigh if provided (optional parameter)
+                    if (Parameters.ContainsKey("vHigh"))
+                    {
+                        double vHigh = Parameters["vHigh"];
+                        // TTL standard: typically 3.3V or 5.0V, but allow range 2.0V to 5.5V for flexibility
+                        if (vHigh < 2.0 || vHigh > 5.5)
+                        {
+                            errorMessage = $"V_OH (vHigh) must be between 2.0V and 5.5V for TTL compatibility. Current value: {vHigh:F1}V. Typical values are 3.3V or 5.0V.";
+                            return false;
+                        }
+                    }
+
+                    // vLow is always 0V, no validation needed (enforced by CreateDigitalPulseTrain)
+                    break;
             }
 
             errorMessage = null;

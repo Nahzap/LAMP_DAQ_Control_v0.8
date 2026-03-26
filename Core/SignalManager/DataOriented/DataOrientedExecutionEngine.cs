@@ -206,11 +206,17 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         }
         
         /// <summary>
-        /// Executes events from table with PARALLEL execution for events at the same time
-        /// CRITICAL: Events with identical start times must run in parallel for hardware synchronization
+        /// Executes events from table with TRUE PARALLEL execution.
+        /// CRITICAL FIX: Long-running events (PulseTrain, DC holds, DigitalState, Waveform) are
+        /// launched as fire-and-forget background tasks. The engine does NOT wait for them to complete
+        /// before advancing to the next time group. This ensures a 5s PulseTrain at t=0 does not
+        /// block analog waveforms scheduled at t=1s.
         /// </summary>
         private async Task ExecuteEventsAsync(SignalTable table, CancellationToken cancellationToken)
         {
+            // Track all background (fire-and-forget) tasks so we can await them at the end
+            var backgroundTasks = new List<Task>();
+            
             int i = 0;
             while (i < table.Count && !cancellationToken.IsCancellationRequested)
             {
@@ -226,20 +232,20 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     await HighPrecisionWaitAsync(waitNs, cancellationToken);
                 }
                 
-                // CRITICAL: Find ALL events that start at the same time (parallel group)
-                var parallelTasks = new List<Task>();
-                int groupStart = i;
+                // Collect all events at this start time
+                var groupIndices = new List<int>();
+                while (i < table.Count && table.StartTimesNs[i] == currentGroupStartNs)
+                {
+                    groupIndices.Add(i);
+                    i++;
+                }
                 
                 // PHASE SYNC: Count waveform events in this parallel group
                 int waveformCount = 0;
-                int tempIndex = i;
-                while (tempIndex < table.Count && table.StartTimesNs[tempIndex] == currentGroupStartNs)
+                foreach (int idx in groupIndices)
                 {
-                    if (table.EventTypes[tempIndex] == SignalEventType.Waveform)
-                    {
+                    if (table.EventTypes[idx] == SignalEventType.Waveform)
                         waveformCount++;
-                    }
-                    tempIndex++;
                 }
                 
                 // PHASE SYNC: Prepare barrier and preload LUT if we have parallel waveforms
@@ -250,28 +256,71 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     DAQ.Services.SignalGenerator.PreparePhaseBarrier(waveformCount);
                 }
                 
-                while (i < table.Count && table.StartTimesNs[i] == currentGroupStartNs)
+                System.Console.WriteLine($"[DO PARALLEL] Launching {groupIndices.Count} events at {currentGroupStartNs / 1e9:F6}s");
+                
+                // Launch ALL events in this group simultaneously
+                // Long-running events are fire-and-forget (tracked in backgroundTasks)
+                // Short events (Ramp) complete naturally within their duration
+                var immediateAwaitTasks = new List<Task>();
+                
+                foreach (int eventIndex in groupIndices)
                 {
-                    int eventIndex = i; // Capture for closure
-                    // CRITICAL FIX: Use Task.Run to ensure true parallel execution
-                    // Without Task.Run, synchronous code before first await blocks other tasks
-                    parallelTasks.Add(Task.Run(() => ExecuteEventAtIndexAsync(table, eventIndex, cancellationToken), cancellationToken));
-                    i++;
+                    var eventType = table.EventTypes[eventIndex];
+                    int capturedIndex = eventIndex;
+                    
+                    // Classify: is this a long-running event that may outlive its time group?
+                    bool isLongRunning = (eventType == SignalEventType.PulseTrain ||
+                                          eventType == SignalEventType.DC ||
+                                          eventType == SignalEventType.DigitalState ||
+                                          eventType == SignalEventType.DigitalPulse);
+                    
+                    var task = Task.Run(() => ExecuteEventAtIndexAsync(table, capturedIndex, cancellationToken), cancellationToken);
+                    
+                    if (isLongRunning)
+                    {
+                        // Fire-and-forget: don't block the timeline
+                        backgroundTasks.Add(task);
+                        System.Console.WriteLine($"[DO PARALLEL] Fire-and-forget: {eventType} on {table.DeviceModels[eventIndex]} CH{table.Channels[eventIndex]}");
+                    }
+                    else
+                    {
+                        // Ramp/Waveform: await in group (Ramp completes in its duration, Waveform returns immediately after starting signal gen)
+                        immediateAwaitTasks.Add(task);
+                        System.Console.WriteLine($"[DO PARALLEL] Await: {eventType} on {table.DeviceModels[eventIndex]} CH{table.Channels[eventIndex]}");
+                    }
                 }
                 
-                System.Console.WriteLine($"[DO PARALLEL] Launching {parallelTasks.Count} events in PARALLEL at {currentGroupStartNs / 1e9:F6}s");
+                // Await only the non-long-running events before advancing to next time group
+                if (immediateAwaitTasks.Count > 0)
+                {
+                    await Task.WhenAll(immediateAwaitTasks);
+                }
                 
-                // CRITICAL: Execute ALL events in this time group IN PARALLEL
-                await Task.WhenAll(parallelTasks);
-                
-                // NOTE: Barrier is NOT cleared here - Task.WhenAll completes before threads reach it.
-                // The barrier becomes inert after all participants pass through it naturally.
                 if (waveformCount > 1)
                 {
                     System.Console.WriteLine($"[PHASE SYNC] {waveformCount} waveform threads launched - barrier will sync them internally");
                 }
                 
-                System.Console.WriteLine($"[DO PARALLEL] Completed {parallelTasks.Count} parallel events");
+                System.Console.WriteLine($"[DO PARALLEL] Time group {currentGroupStartNs / 1e9:F6}s dispatched (background: {backgroundTasks.Count} active)");
+            }
+            
+            // Wait for all background tasks to complete (they will finish at their scheduled end times)
+            if (backgroundTasks.Count > 0)
+            {
+                System.Console.WriteLine($"[DO PARALLEL] Waiting for {backgroundTasks.Count} background tasks to complete...");
+                try
+                {
+                    await Task.WhenAll(backgroundTasks);
+                }
+                catch (OperationCanceledException)
+                {
+                    // Expected on cancellation
+                }
+                catch (Exception ex)
+                {
+                    System.Console.WriteLine($"[DO PARALLEL ERROR] Background task error: {ex.Message}");
+                }
+                System.Console.WriteLine("[DO PARALLEL] All background tasks completed");
             }
         }
         
@@ -391,6 +440,82 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     controller.WriteDigitalBit(port, bit, true);
                     await Task.Delay(TimeSpan.FromTicks(durationNs / 100), cancellationToken);
                     controller.WriteDigitalBit(port, bit, false);
+                    break;
+                
+                case SignalEventType.DigitalState:
+                    // Extract state from attributes (1.0 = HIGH, 0.0 = LOW)
+                    double stateValue = table.Attributes.GetVoltage(index, 0);
+                    bool state = stateValue > 0.5;
+                    int portState = channel / 8;
+                    int bitState = channel % 8;
+                    
+                    System.Console.WriteLine($"[DO EXEC ENGINE] Digital State: {(state ? "HIGH" : "LOW")} on {deviceModel} Port {portState} Bit {bitState}");
+                    System.Console.WriteLine($"[DO DIGITAL CRITICAL] CALLING controller.WriteDigitalBit(port={portState}, bit={bitState}, state={state})");
+                    System.Console.WriteLine($"[DO DIGITAL CRITICAL] Controller found: {controller != null}, DeviceModel in table: {deviceModel}");
+                    
+                    try
+                    {
+                        controller.WriteDigitalBit(portState, bitState, state);
+                        System.Console.WriteLine($"[DO DIGITAL CRITICAL] ✓✓✓ WriteDigitalBit RETURNED SUCCESSFULLY ✓✓✓");
+                    }
+                    catch (Exception ex)
+                    {
+                        System.Console.WriteLine($"[DO DIGITAL ERROR] ❌ WriteDigitalBit THREW EXCEPTION: {ex.GetType().Name}");
+                        System.Console.WriteLine($"[DO DIGITAL ERROR] Message: {ex.Message}");
+                        System.Console.WriteLine($"[DO DIGITAL ERROR] Stack: {ex.StackTrace}");
+                        throw;
+                    }
+                    
+                    // CRITICAL: Wait for duration to maintain state
+                    await Task.Delay(TimeSpan.FromTicks(durationNs / 100), cancellationToken);
+                    
+                    System.Console.WriteLine($"[DO EXEC ENGINE] Digital State completed on {deviceModel} CH{channel}");
+                    break;
+                
+                case SignalEventType.PulseTrain:
+                    // Extract PulseTrain parameters
+                    var (frequency, dutyCycle, vHigh) = table.Attributes.GetWaveformParams(index);
+                    double vLow = 0.0;
+                    
+                    System.Console.WriteLine($"[DO EXEC ENGINE] PulseTrain: {frequency}Hz, {dutyCycle * 100:F1}% duty, {vHigh:F1}V high");
+                    
+                    int portPT = channel / 8;
+                    int bitPT = channel % 8;
+                    
+                    // Calculate timing
+                    double periodMs = 1000.0 / frequency;
+                    int highTimeMs = (int)(periodMs * dutyCycle);
+                    int lowTimeMs = (int)(periodMs * (1.0 - dutyCycle));
+                    
+                    if (highTimeMs < 1) highTimeMs = 1;
+                    if (lowTimeMs < 1) lowTimeMs = 1;
+                    
+                    long endTimeNs = table.StartTimesNs[index] + durationNs;
+                    
+                    System.Console.WriteLine($"[DO PULSE TRAIN] Period: {periodMs:F2}ms, High: {highTimeMs}ms, Low: {lowTimeMs}ms");
+                    
+                    // Generate pulse train until duration expires
+                    while (!cancellationToken.IsCancellationRequested)
+                    {
+                        long elapsedNs = (long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds);
+                        if (elapsedNs >= endTimeNs) break;
+                        
+                        // HIGH phase
+                        controller.WriteDigitalBit(portPT, bitPT, true);
+                        await Task.Delay(highTimeMs, cancellationToken);
+                        
+                        // Check if we should continue
+                        elapsedNs = (long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds);
+                        if (elapsedNs >= endTimeNs) break;
+                        
+                        // LOW phase
+                        controller.WriteDigitalBit(portPT, bitPT, false);
+                        await Task.Delay(lowTimeMs, cancellationToken);
+                    }
+                    
+                    // Ensure LOW at end
+                    controller.WriteDigitalBit(portPT, bitPT, false);
+                    System.Console.WriteLine($"[DO PULSE TRAIN] Completed on {deviceModel} CH{channel}");
                     break;
             }
         }

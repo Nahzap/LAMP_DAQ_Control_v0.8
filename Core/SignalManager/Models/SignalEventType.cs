@@ -31,6 +31,11 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Models
         DigitalState,
 
         /// <summary>
+        /// Digital pulse train (TTL with frequency and duty cycle)
+        /// </summary>
+        PulseTrain,
+
+        /// <summary>
         /// Wait/delay (no output change)
         /// </summary>
         Wait

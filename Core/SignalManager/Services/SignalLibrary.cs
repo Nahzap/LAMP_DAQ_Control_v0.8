@@ -40,6 +40,14 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
             AddSignal(CreateDigitalPulse("Pulse 500ms", 500, "500ms HIGH pulse"), "Digital Write");
             AddSignal(CreateDigitalPulse("Pulse 1s", 1000, "1 second HIGH pulse"), "Digital Write");
 
+            // Digital Pulse Trains - TTL with frequency and duty cycle
+            AddSignal(CreateDigitalPulseTrain("PulseTrain 1kHz @ 50%", 1000, 0.50, 3.3, "1kHz pulse train, 50% duty cycle, 3.3V TTL"), "Digital Pulse Trains");
+            AddSignal(CreateDigitalPulseTrain("PulseTrain 1kHz @ 50% (5V)", 1000, 0.50, 5.0, "1kHz pulse train, 50% duty cycle, 5.0V TTL"), "Digital Pulse Trains");
+            AddSignal(CreateDigitalPulseTrain("PulseTrain 10kHz @ 25%", 10000, 0.25, 3.3, "10kHz pulse train, 25% duty cycle, 3.3V TTL"), "Digital Pulse Trains");
+            AddSignal(CreateDigitalPulseTrain("PulseTrain 10kHz @ 75%", 10000, 0.75, 5.0, "10kHz pulse train, 75% duty cycle, 5.0V TTL"), "Digital Pulse Trains");
+            AddSignal(CreateDigitalPulseTrain("PulseTrain 100kHz @ 10%", 100000, 0.10, 5.0, "100kHz pulse train, 10% duty cycle, 5.0V TTL"), "Digital Pulse Trains");
+            AddSignal(CreateDigitalPulseTrain("PulseTrain 100kHz @ 90%", 100000, 0.90, 3.3, "100kHz pulse train, 90% duty cycle, 3.3V TTL"), "Digital Pulse Trains");
+
             // Digital Read - Input monitoring
             AddSignal(CreateDigitalRead("Read State", "Read digital input state"), "Digital Read");
             AddSignal(CreateDigitalTrigger("Wait HIGH", true, "Wait for HIGH transition"), "Digital Read");
@@ -205,6 +213,47 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
                 Parameters = new Dictionary<string, double> { { "trigger_state", waitForHigh ? 1 : 0 } },
                 Description = description,
                 Color = "#F39C12"
+            };
+        }
+
+        /// <summary>
+        /// Create Digital Pulse Train (TTL with frequency and duty cycle)
+        /// ONLY for PCI-1735U (Digital card)
+        /// 
+        /// Generates TTL pulse train with configurable parameters:
+        /// - frequency: Repetition rate in Hz (f)
+        /// - dutyCycle: Ratio of t_on to period T (0.01 to 1.00, i.e., 1% to 100%)
+        /// - vHigh: High voltage level (V_OH), typically 3.3V or 5.0V for TTL
+        /// 
+        /// Automatic calculations:
+        /// - period T = 1/f
+        /// - t_on = dutyCycle * T
+        /// - t_off = (1 - dutyCycle) * T
+        /// - V_OL is always 0V (LOW state)
+        /// </summary>
+        /// <param name="name">Display name for the pulse train</param>
+        /// <param name="frequency">Frequency in Hz (must be > 0)</param>
+        /// <param name="dutyCycle">Duty cycle as ratio (0.01 to 1.00)</param>
+        /// <param name="vHigh">High voltage level in Vdc (typically 3.3 or 5.0)</param>
+        /// <param name="description">Human-readable description</param>
+        /// <returns>SignalEvent configured as PulseTrain</returns>
+        private SignalEvent CreateDigitalPulseTrain(string name, double frequency, double dutyCycle, double vHigh, string description)
+        {
+            return new SignalEvent
+            {
+                Name = name,
+                EventType = SignalEventType.PulseTrain,
+                DeviceType = DeviceType.Digital,
+                Duration = TimeSpan.FromSeconds(1), // Default duration, user can modify
+                Parameters = new Dictionary<string, double>
+                {
+                    { "frequency", frequency },    // Hz
+                    { "dutyCycle", dutyCycle },    // 0.01 - 1.00 (1% - 100%)
+                    { "vHigh", vHigh },            // V_OH (3.3V or 5.0V typical)
+                    { "vLow", 0.0 }                // V_OL always 0V
+                },
+                Description = description,
+                Color = "#E67E22" // Orange color for pulse trains
             };
         }
 

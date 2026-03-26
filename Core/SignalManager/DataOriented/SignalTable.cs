@@ -183,6 +183,45 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         }
         
         /// <summary>
+        /// Validates that _idToIndex dictionary is synchronized with EventIds array.
+        /// Rebuilds dictionary if mismatches are detected (CRITICAL for drag & drop correctness).
+        /// </summary>
+        private void ValidateDictionarySynchronization()
+        {
+            bool hasMismatch = false;
+            
+            for (int i = 0; i < Count; i++)
+            {
+                if (_idToIndex.TryGetValue(EventIds[i], out int dictIndex))
+                {
+                    if (dictIndex != i)
+                    {
+                        hasMismatch = true;
+                        System.Console.WriteLine($"[SIGNAL TABLE SYNC ERROR] EventId {EventIds[i]} maps to index {dictIndex} but should be {i}");
+                        break;
+                    }
+                }
+                else
+                {
+                    hasMismatch = true;
+                    System.Console.WriteLine($"[SIGNAL TABLE SYNC ERROR] EventId {EventIds[i]} at index {i} not found in dictionary");
+                    break;
+                }
+            }
+            
+            if (hasMismatch)
+            {
+                System.Console.WriteLine($"[SIGNAL TABLE SYNC FIX] Rebuilding _idToIndex dictionary to fix desynchronization...");
+                _idToIndex.Clear();
+                for (int i = 0; i < Count; i++)
+                {
+                    _idToIndex[EventIds[i]] = i;
+                }
+                System.Console.WriteLine($"[SIGNAL TABLE SYNC FIX] Dictionary rebuilt successfully");
+            }
+        }
+        
+        /// <summary>
         /// Gets time range (start, end) in nanoseconds
         /// </summary>
         public (long start, long end) GetTimeRange(int index)
@@ -217,6 +256,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             DeviceModels[index] = newDeviceModel;
             
             System.Console.WriteLine($"[SIGNAL TABLE] Updated channel for '{Names[index]}': CH{newChannel}, Device={newDeviceModel} ({newDeviceType})");
+            
+            // CRITICAL: Verify dictionary synchronization after update
+            ValidateDictionarySynchronization();
         }
         
         /// <summary>

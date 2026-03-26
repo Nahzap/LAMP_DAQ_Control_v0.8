@@ -7,6 +7,7 @@ using LAMP_DAQ_Control_v0_8.Core.DAQ.Interfaces;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Managers;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Models;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Services;
+using LAMP_DAQ_Control_v0_8.Core.DAQ.Engine;
 using System.Collections.ObjectModel;
 
 namespace LAMP_DAQ_Control_v0_8.Core.DAQ
@@ -22,6 +23,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
         private readonly IChannelManager _channelManager;
         private ISignalGenerator _signalGenerator; // Not readonly - recreated on device switch
         private readonly ILogger _logger;
+        private DaqEngine _engine; // High-performance parallel engine (optional)
         private bool _disposed;
         #endregion
         
@@ -93,6 +95,17 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
         /// Gets a list of available profile names
         /// </summary>
         public IReadOnlyCollection<string> AvailableProfiles => _profileManager.AvailableProfiles;
+
+        /// <summary>
+        /// Gets the high-performance engine instance (null if not started).
+        /// Used by ExecutionEngine and ViewModels for parallel operations.
+        /// </summary>
+        public DaqEngine Engine => _engine;
+
+        /// <summary>
+        /// Whether the high-performance engine is running.
+        /// </summary>
+        public bool IsEngineRunning => _engine != null && _engine.IsRunning;
         #endregion
 
         #region Public Methods
@@ -277,7 +290,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
         
         #region Digital I/O Methods
         /// <summary>
-        /// Escribe un valor en un puerto digital completo
+        /// Escribe un valor en un puerto digital completo.
+        /// Routes through DaqEngine pipeline if running, otherwise direct write.
         /// </summary>
         /// <param name="port">Número de puerto (0-3)</param>
         /// <param name="value">Valor a escribir (0-255)</param>
@@ -285,11 +299,15 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
         {
             EnsureNotDisposed();
             ValidatePortNumber(port);
-            _deviceManager.WriteDigitalPort(port, value);
+            if (_engine != null && _engine.IsRunning && _engine.HasDigital)
+                _engine.WriteDigitalPort(port, value);
+            else
+                _deviceManager.WriteDigitalPort(port, value);
         }
         
         /// <summary>
-        /// Lee el valor de un puerto digital completo
+        /// Lee el valor de un puerto digital completo.
+        /// Uses StateGrid cache if engine running, otherwise direct read.
         /// </summary>
         /// <param name="port">Número de puerto (0-3)</param>
         /// <returns>Valor del puerto (0-255)</returns>
@@ -297,11 +315,14 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
         {
             EnsureNotDisposed();
             ValidatePortNumber(port);
+            if (_engine != null && _engine.IsRunning && _engine.HasDigital)
+                return _engine.ReadDigitalPort(port);
             return _deviceManager.ReadDigitalPort(port);
         }
         
         /// <summary>
-        /// Escribe un valor en un bit específico de un puerto digital
+        /// Escribe un valor en un bit específico de un puerto digital.
+        /// Routes through DaqEngine pipeline if running.
         /// </summary>
         /// <param name="port">Número de puerto (0-3)</param>
         /// <param name="bit">Número de bit (0-7)</param>
@@ -311,11 +332,15 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
             EnsureNotDisposed();
             ValidatePortNumber(port);
             ValidateBitNumber(bit);
-            _deviceManager.WriteDigitalBit(port, bit, value);
+            if (_engine != null && _engine.IsRunning && _engine.HasDigital)
+                _engine.WriteDigitalBit(port, bit, value);
+            else
+                _deviceManager.WriteDigitalBit(port, bit, value);
         }
         
         /// <summary>
-        /// Lee el valor de un bit específico de un puerto digital
+        /// Lee el valor de un bit específico de un puerto digital.
+        /// Uses StateGrid cache if engine running.
         /// </summary>
         /// <param name="port">Número de puerto (0-3)</param>
         /// <param name="bit">Número de bit (0-7)</param>
@@ -325,7 +350,67 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
             EnsureNotDisposed();
             ValidatePortNumber(port);
             ValidateBitNumber(bit);
+            if (_engine != null && _engine.IsRunning && _engine.HasDigital)
+                return _engine.ReadDigitalBit(port, bit);
             return _deviceManager.ReadDigitalBit(port, bit);
+        }
+        #endregion
+
+        #region Engine Lifecycle
+        /// <summary>
+        /// Creates and starts the high-performance DaqEngine.
+        /// Enables parallel digital+analog operations through the pipeline.
+        /// Call after Initialize() for both device types.
+        /// </summary>
+        /// <param name="digitalDeviceNumber">Board ID for digital device (-1 to skip)</param>
+        /// <param name="analogDeviceNumber">Board ID for analog device (-1 to skip)</param>
+        /// <param name="outputIntervalUs">Output cycle interval in microseconds (default 500 = 2kHz)</param>
+        public void StartEngine(int digitalDeviceNumber = -1, int analogDeviceNumber = -1, int outputIntervalUs = 500)
+        {
+            EnsureNotDisposed();
+
+            if (_engine != null && _engine.IsRunning)
+            {
+                _logger.Info("Engine already running");
+                return;
+            }
+
+            _engine = new DaqEngine(_logger);
+            _engine.OutputIntervalMicroseconds = outputIntervalUs;
+
+            if (digitalDeviceNumber >= 0)
+                _engine.InitializeDigital(digitalDeviceNumber);
+
+            if (analogDeviceNumber >= 0)
+                _engine.InitializeAnalog(analogDeviceNumber);
+            else if (_deviceManager.IsInitialized && _deviceManager.CurrentDeviceType == DeviceType.Analog && _deviceManager.Device != null)
+                _engine.InitializeAnalogFromExisting(_deviceManager.Device);
+
+            _engine.Start();
+            _logger.Info($"DaqEngine started (Digital={_engine.HasDigital}, Analog={_engine.HasAnalog})");
+        }
+
+        /// <summary>
+        /// Stops and disposes the high-performance engine.
+        /// Operations fall back to direct DeviceManager calls.
+        /// </summary>
+        public void StopEngine()
+        {
+            if (_engine != null)
+            {
+                _engine.Stop();
+                _engine.Dispose();
+                _engine = null;
+                _logger.Info("DaqEngine stopped");
+            }
+        }
+
+        /// <summary>
+        /// Gets engine diagnostics string.
+        /// </summary>
+        public string GetEngineDiagnostics()
+        {
+            return _engine?.GetDiagnostics() ?? "Engine not running";
         }
         #endregion
 
@@ -382,6 +467,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
             {
                 try
                 {
+                    // Stop engine first if running
+                    StopEngine();
+                    
                     // Stop any signal generation first
                     StopSignalGeneration();
                     

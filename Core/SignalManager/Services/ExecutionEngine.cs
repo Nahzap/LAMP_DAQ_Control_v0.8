@@ -134,13 +134,15 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
             try
             {
                 // Sort events by start time
-                var sortedEvents = sequence.GetEventsSorted();
-                System.Console.WriteLine($"[EXEC ENGINE] Found {sortedEvents.Count()} events to execute");
+                var sortedEvents = sequence.GetEventsSorted().ToList();
+                System.Console.WriteLine($"[EXEC ENGINE] Found {sortedEvents.Count} events to execute");
 
-                foreach (var evt in sortedEvents)
+                // Group events by start time for parallel execution
+                var eventGroups = GroupEventsByStartTime(sortedEvents);
+                System.Console.WriteLine($"[EXEC ENGINE] Grouped into {eventGroups.Count} time slots for parallel dispatch");
+
+                foreach (var group in eventGroups)
                 {
-                    System.Console.WriteLine($"[EXEC ENGINE] Processing event: {evt.Name} (Type: {evt.EventType}, Device: {evt.DeviceType}, Channel: {evt.Channel}, Start: {evt.StartTime.TotalSeconds:F2}s)");
-                    
                     // Check for cancellation
                     if (_cts.Token.IsCancellationRequested)
                     {
@@ -152,37 +154,42 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
                     // Wait for pause
                     _pauseEvent.Wait(_cts.Token);
 
-                    // Wait until event start time
-                    System.Console.WriteLine($"[EXEC ENGINE] Waiting until {evt.StartTime.TotalSeconds:F2}s...");
-                    await WaitUntilAsync(evt.StartTime, _cts.Token);
-                    System.Console.WriteLine($"[EXEC ENGINE] Time reached, executing event...");
+                    // Wait until group start time
+                    var groupTime = group.Key;
+                    System.Console.WriteLine($"[EXEC ENGINE] Waiting until {groupTime.TotalSeconds:F2}s ({group.Value.Count} concurrent events)...");
+                    await WaitUntilAsync(groupTime, _cts.Token);
+                    System.Console.WriteLine($"[EXEC ENGINE] Time {groupTime.TotalSeconds:F2}s reached, dispatching {group.Value.Count} events in parallel...");
 
-                    // Execute event
-                    try
+                    if (group.Value.Count == 1)
                     {
-                        await ExecuteEventAsync(evt, _cts.Token);
-                        System.Console.WriteLine($"[EXEC ENGINE] Event executed successfully: {evt.Name}");
-
-                        // Current time updated continuously by timer (no need here)
-
-                        // Fire event executed
-                        OnEventExecuted(new EventExecutedEventArgs
+                        // Single event — execute directly (no Task overhead)
+                        var evt = group.Value[0];
+                        try
                         {
-                            Event = evt,
-                            ActualTime = CurrentTime
-                        });
+                            await ExecuteEventAsync(evt, _cts.Token);
+                            System.Console.WriteLine($"[EXEC ENGINE] Event executed: {evt.Name}");
+                            OnEventExecuted(new EventExecutedEventArgs { Event = evt, ActualTime = CurrentTime });
+                        }
+                        catch (Exception ex)
+                        {
+                            OnExecutionError(new ExecutionErrorEventArgs { Event = evt, Error = ex });
+                            if (ex is OperationCanceledException) throw;
+                        }
                     }
-                    catch (Exception ex)
+                    else
                     {
-                        OnExecutionError(new ExecutionErrorEventArgs
+                        // PARALLEL DISPATCH: Multiple events at same start time
+                        // Execute on different devices simultaneously
+                        var tasks = new List<Task>(group.Value.Count);
+                        foreach (var evt in group.Value)
                         {
-                            Event = evt,
-                            Error = ex
-                        });
+                            System.Console.WriteLine($"[EXEC ENGINE] Parallel dispatch: {evt.Name} (Device: {evt.DeviceModel}, Type: {evt.EventType})");
+                            tasks.Add(ExecuteEventWithErrorHandling(evt, _cts.Token));
+                        }
 
-                        // Continue execution unless critical error
-                        if (ex is OperationCanceledException)
-                            throw;
+                        // Wait for ALL concurrent events to complete
+                        await Task.WhenAll(tasks);
+                        System.Console.WriteLine($"[EXEC ENGINE] All {group.Value.Count} parallel events completed at t={groupTime.TotalSeconds:F2}s");
                     }
                 }
 
@@ -427,6 +434,66 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.Services
             {
                 CurrentTime = _executionTimer.Elapsed;
                 // Note: CurrentTime setter fires PropertyChanged, which updates UI playhead
+            }
+        }
+
+        /// <summary>
+        /// Groups events by start time for parallel dispatch.
+        /// Events within 1ms of each other are considered simultaneous.
+        /// Returns a sorted dictionary: StartTime → List of concurrent events.
+        /// </summary>
+        private SortedDictionary<TimeSpan, List<SignalEvent>> GroupEventsByStartTime(List<SignalEvent> sortedEvents)
+        {
+            var groups = new SortedDictionary<TimeSpan, List<SignalEvent>>();
+            const double toleranceMs = 1.0; // Events within 1ms are concurrent
+
+            foreach (var evt in sortedEvents)
+            {
+                // Find existing group within tolerance
+                TimeSpan matchedKey = TimeSpan.MinValue;
+                foreach (var key in groups.Keys)
+                {
+                    if (Math.Abs((evt.StartTime - key).TotalMilliseconds) <= toleranceMs)
+                    {
+                        matchedKey = key;
+                        break;
+                    }
+                }
+
+                if (matchedKey != TimeSpan.MinValue)
+                {
+                    groups[matchedKey].Add(evt);
+                }
+                else
+                {
+                    groups[evt.StartTime] = new List<SignalEvent> { evt };
+                }
+            }
+
+            return groups;
+        }
+
+        /// <summary>
+        /// Wraps ExecuteEventAsync with error handling for parallel execution.
+        /// Exceptions are caught and reported via OnExecutionError instead of propagating,
+        /// so one failing event doesn't kill all parallel siblings.
+        /// </summary>
+        private async Task ExecuteEventWithErrorHandling(SignalEvent evt, CancellationToken ct)
+        {
+            try
+            {
+                await ExecuteEventAsync(evt, ct);
+                System.Console.WriteLine($"[EXEC ENGINE] Parallel event completed: {evt.Name}");
+                OnEventExecuted(new EventExecutedEventArgs { Event = evt, ActualTime = CurrentTime });
+            }
+            catch (OperationCanceledException)
+            {
+                throw; // Propagate cancellation
+            }
+            catch (Exception ex)
+            {
+                System.Console.WriteLine($"[EXEC ENGINE] Parallel event failed: {evt.Name} - {ex.Message}");
+                OnExecutionError(new ExecutionErrorEventArgs { Event = evt, Error = ex });
             }
         }
     }

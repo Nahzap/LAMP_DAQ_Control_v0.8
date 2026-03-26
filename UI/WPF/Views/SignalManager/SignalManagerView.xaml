@@ -188,118 +188,96 @@
                                 <RowDefinition Height="Auto"/>
                             </Grid.RowDefinitions>
                 
-                <Border Grid.Row="1" BorderBrush="#DDD" BorderThickness="1" Background="White" Padding="10">
-                    <ScrollViewer VerticalScrollBarVisibility="Auto">
-                        <StackPanel>
-                            <TextBlock Text="Name:" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <TextBox Text="{Binding SelectedEventName, UpdateSourceTrigger=LostFocus}" 
-                                     Margin="0,0,0,10"
-                                     ToolTip="Edit name manually (disables auto-naming)"/>
+                            <Border Grid.Row="1" BorderBrush="#DDD" BorderThickness="1" Background="White" Padding="10">
+                                <ScrollViewer VerticalScrollBarVisibility="Auto">
+                                    <StackPanel>
+                                        <TextBlock Text="Name:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                        <TextBox Text="{Binding SelectedEvent.Name, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"/>
 
-                            <TextBlock Text="Event Type:" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <ComboBox SelectedItem="{Binding SelectedEvent.EventType}" 
-                                      Margin="0,0,0,10"/>
+                                        <TextBlock Text="Event Type:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                        <ComboBox SelectedItem="{Binding SelectedEvent.EventType}" 
+                                                  Margin="0,0,0,10"/>
 
-                            <TextBlock Text="Channel:" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <TextBox Text="{Binding SelectedEvent.Channel, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,0,0,10"/>
+                                        <TextBlock Text="Channel:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                        <TextBox Text="{Binding SelectedEvent.Channel, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"/>
 
-                            <TextBlock Text="Start Time:" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <Grid Margin="0,0,0,10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="5"/>
-                                    <ColumnDefinition Width="60"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" 
-                                         Text="{Binding SelectedEventStartTimeValue, UpdateSourceTrigger=LostFocus, StringFormat=F6}" 
-                                         ToolTip="Enter start time value"/>
-                                <ComboBox Grid.Column="2" 
-                                          SelectedItem="{Binding SelectedStartTimeUnit}"
-                                          ToolTip="Select time unit">
-                                    <ComboBoxItem Content="s"/>
-                                    <ComboBoxItem Content="ms"/>
-                                    <ComboBoxItem Content="µs"/>
-                                    <ComboBoxItem Content="ns"/>
-                                </ComboBox>
-                            </Grid>
+                                        <TextBlock Text="Start Time (s):" FontWeight="Bold" Margin="0,0,0,5"/>
+                                        <TextBox Text="{Binding SelectedEventStartSeconds, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"/>
 
-                            <TextBlock Text="Duration:" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <Grid Margin="0,0,0,10">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="5"/>
-                                    <ColumnDefinition Width="60"/>
-                                </Grid.ColumnDefinitions>
-                                <TextBox Grid.Column="0" 
-                                         Text="{Binding SelectedEventDurationValue, UpdateSourceTrigger=LostFocus, StringFormat=F6}" 
-                                         ToolTip="Enter duration value"/>
-                                <ComboBox Grid.Column="2" 
-                                          SelectedItem="{Binding SelectedDurationUnit}"
-                                          ToolTip="Select time unit">
-                                    <ComboBoxItem Content="s"/>
-                                    <ComboBoxItem Content="ms"/>
-                                    <ComboBoxItem Content="µs"/>
-                                    <ComboBoxItem Content="ns"/>
-                                </ComboBox>
-                            </Grid>
+                                        <TextBlock Text="Duration (ms):" FontWeight="Bold" Margin="0,0,0,5"/>
+                                        <TextBox Text="{Binding SelectedEventDurationMs, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"/>
 
-                            <!-- Start Voltage for Ramp events -->
-                            <TextBlock Text="Start Voltage (V):" FontWeight="Bold" Margin="0,0,0,5"
-                                       Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                            <TextBox Text="{Binding SelectedEventStartVoltage, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,0,0,10"
-                                     Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <!-- Start Voltage for Ramp events -->
+                                        <TextBlock Text="Start Voltage (V):" FontWeight="Bold" Margin="0,0,0,5"
+                                                   Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <TextBox Text="{Binding SelectedEventStartVoltage, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"
+                                                 Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
-                            <!-- End Voltage for Ramp events -->
-                            <TextBlock Text="End Voltage (V):" FontWeight="Bold" Margin="0,0,0,5"
-                                       Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                            <TextBox Text="{Binding SelectedEventEndVoltage, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,0,0,10"
-                                     Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <!-- End Voltage for Ramp events -->
+                                        <TextBlock Text="End Voltage (V):" FontWeight="Bold" Margin="0,0,0,5"
+                                                   Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <TextBox Text="{Binding SelectedEventEndVoltage, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"
+                                                 Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
-                            <!-- Frequency for Waveform events -->
-                            <TextBlock Text="Frequency (Hz):" FontWeight="Bold" Margin="0,0,0,5"
-                                       Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                            <TextBox Text="{Binding SelectedEventFrequency, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,0,0,10"
-                                     Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <!-- Digital State (HIGH/LOW) -->
+                                        <TextBlock Text="Digital State:" FontWeight="Bold" Margin="0,0,0,5"
+                                                   Visibility="{Binding SelectedEventIsDigitalState, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <ComboBox SelectedItem="{Binding SelectedEventDigitalState, UpdateSourceTrigger=PropertyChanged}" 
+                                                  Margin="0,0,0,10"
+                                                  Visibility="{Binding SelectedEventIsDigitalState, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <ComboBoxItem Content="HIGH"/>
+                                            <ComboBoxItem Content="LOW"/>
+                                        </ComboBox>
 
-                            <!-- Amplitude for Waveform events -->
-                            <TextBlock Text="Amplitude (V):" FontWeight="Bold" Margin="0,0,0,5"
-                                       Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                            <TextBox Text="{Binding SelectedEventAmplitude, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,0,0,10"
-                                     Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <!-- Pulse Train Parameters -->
+                                        <TextBlock Text="Frequency (Hz):" FontWeight="Bold" Margin="0,0,0,5"
+                                                   Visibility="{Binding SelectedEventIsPulseTrain, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <TextBox Text="{Binding SelectedEventFrequency, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"
+                                                 Visibility="{Binding SelectedEventIsPulseTrain, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
-                            <!-- Offset for Waveform events -->
-                            <TextBlock Text="Offset DC (V):" FontWeight="Bold" Margin="0,0,0,5"
-                                       Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
-                            <TextBox Text="{Binding SelectedEventOffset, UpdateSourceTrigger=PropertyChanged}" 
-                                     Margin="0,0,0,10"
-                                     Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <TextBlock Text="Duty Cycle (%):" FontWeight="Bold" Margin="0,0,0,5"
+                                                   Visibility="{Binding SelectedEventIsPulseTrain, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <TextBox Text="{Binding SelectedEventDutyCycle, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"
+                                                 Visibility="{Binding SelectedEventIsPulseTrain, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
-                            <TextBlock Text="Description:" FontWeight="Bold" Margin="0,0,0,5"/>
-                            <TextBox Text="{Binding SelectedEvent.Description, UpdateSourceTrigger=PropertyChanged}" 
-                                     TextWrapping="Wrap" 
-                                     AcceptsReturn="True" 
-                                     Height="60" 
-                                     Margin="0,0,0,10"/>
+                                        <TextBlock Text="vHigh (V):" FontWeight="Bold" Margin="0,0,0,5"
+                                                   Visibility="{Binding SelectedEventIsPulseTrain, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <ComboBox SelectedItem="{Binding SelectedEventVHigh, UpdateSourceTrigger=PropertyChanged}" 
+                                                  Margin="0,0,0,10"
+                                                  Visibility="{Binding SelectedEventIsPulseTrain, Converter={StaticResource BoolToVisibilityConverter}}">
+                                            <ComboBoxItem Content="3.3"/>
+                                            <ComboBoxItem Content="5.0"/>
+                                        </ComboBox>
 
-                            <Button Content="Apply Changes" Command="{Binding ApplyEventChangesCommand}" 
-                                    HorizontalAlignment="Stretch" 
-                                    Padding="10,5"/>
-                        </StackPanel>
-                    </ScrollViewer>
-                </Border>
+                                        <TextBlock Text="Description:" FontWeight="Bold" Margin="0,0,0,5"/>
+                                        <TextBox Text="{Binding SelectedEvent.Description, UpdateSourceTrigger=PropertyChanged}" 
+                                                 TextWrapping="Wrap" 
+                                                 AcceptsReturn="True" 
+                                                 Height="60" 
+                                                 Margin="0,0,0,10"/>
 
-                <StackPanel Grid.Row="2" Margin="0,10,0,0">
-                    <Button Content="Delete Event" Command="{Binding DeleteEventCommand}" 
-                            Background="#E74C3C" Foreground="White" 
-                            Padding="10,5" Margin="0,0,0,5"/>
-                    <Button Content="Duplicate Event" Command="{Binding DuplicateEventCommand}" 
-                            Padding="10,5"/>
-                </StackPanel>
+                                        <Button Content="Apply Changes" Command="{Binding ApplyEventChangesCommand}" 
+                                                HorizontalAlignment="Stretch" 
+                                                Padding="10,5"/>
+                                    </StackPanel>
+                                </ScrollViewer>
+                            </Border>
+
+                            <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                                <Button Content="Delete Event" Command="{Binding DeleteEventCommand}" 
+                                        Background="#E74C3C" Foreground="White" 
+                                        Padding="10,5" Margin="0,0,0,5"/>
+                                <Button Content="Duplicate Event" Command="{Binding DuplicateEventCommand}" 
+                                        Padding="10,5"/>
+                            </StackPanel>
                         </Grid>
                     </TabItem>
                     

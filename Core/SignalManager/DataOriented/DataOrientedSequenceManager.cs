@@ -141,10 +141,34 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 return;
             }
             
+            // CRITICAL VALIDATION: Prevent corruption of signals by type mismatch
+            // This protects analog signals from being overwritten by digital signals during drag & drop
+            SignalEventType existingType = table.EventTypes[index];
+            DeviceType existingDeviceType = table.DeviceTypes[index];
+            string existingName = table.Names[index];
+            
+            if (existingType != updatedEvent.EventType)
+            {
+                System.Console.WriteLine($"[DO MANAGER ERROR] Cannot update '{existingName}' (EventId: {eventId}): EventType mismatch");
+                System.Console.WriteLine($"[DO MANAGER ERROR]   Existing: {existingType}, Attempted: {updatedEvent.EventType}");
+                System.Console.WriteLine($"[DO MANAGER ERROR]   This would corrupt the signal. Update REJECTED.");
+                return;
+            }
+            
+            if (existingDeviceType != updatedEvent.DeviceType)
+            {
+                System.Console.WriteLine($"[DO MANAGER ERROR] Cannot update '{existingName}' (EventId: {eventId}): DeviceType mismatch");
+                System.Console.WriteLine($"[DO MANAGER ERROR]   Existing: {existingDeviceType}, Attempted: {updatedEvent.DeviceType}");
+                System.Console.WriteLine($"[DO MANAGER ERROR]   This would corrupt the signal. Update REJECTED.");
+                return;
+            }
+            
+            System.Console.WriteLine($"[DO MANAGER] Validation passed for '{existingName}': {existingType} ({existingDeviceType})");
+            
             // CRITICAL: Update timing
             table.UpdateTiming(index, updatedEvent.StartTime.Ticks * 100, updatedEvent.Duration.Ticks * 100);
             
-            // CRITICAL: Update channel and device (for drag & drop between channels)
+            // CRITICAL: Update channel (only within same device type)
             table.UpdateChannel(index, updatedEvent.Channel, updatedEvent.DeviceType, updatedEvent.DeviceModel);
             
             // Update name and color
@@ -478,6 +502,24 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                         evt.Parameters.TryGetValue("offset", out double o))
                     {
                         table.Attributes.SetWaveformParams(index, f, a, o);
+                    }
+                    break;
+                
+                case SignalEventType.DigitalState:
+                    // Store state as voltage (1.0 = HIGH, 0.0 = LOW)
+                    if (evt.Parameters.TryGetValue("state", out double state))
+                    {
+                        table.Attributes.SetVoltage(index, state);
+                    }
+                    break;
+                
+                case SignalEventType.PulseTrain:
+                    // Store PulseTrain params using waveform storage (frequency, dutyCycle, vHigh)
+                    if (evt.Parameters.TryGetValue("frequency", out double freq) &&
+                        evt.Parameters.TryGetValue("dutyCycle", out double duty) &&
+                        evt.Parameters.TryGetValue("vHigh", out double vHigh))
+                    {
+                        table.Attributes.SetWaveformParams(index, freq, duty, vHigh);
                     }
                     break;
             }

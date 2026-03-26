@@ -220,6 +220,20 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     evt.Parameters["amplitude"] = a;
                     evt.Parameters["offset"] = o;
                     break;
+                
+                case SignalEventType.DigitalState:
+                    // Load state (1.0 = HIGH, 0.0 = LOW)
+                    evt.Parameters["state"] = _table.Attributes.GetVoltage(index, 1.0);
+                    break;
+                
+                case SignalEventType.PulseTrain:
+                    // Load PulseTrain params (stored as frequency, dutyCycle, vHigh)
+                    var (freq, duty, vHigh) = _table.Attributes.GetWaveformParams(index);
+                    evt.Parameters["frequency"] = freq;
+                    evt.Parameters["dutyCycle"] = duty;
+                    evt.Parameters["vHigh"] = vHigh;
+                    evt.Parameters["vLow"] = 0.0; // Always 0V
+                    break;
             }
         }
         

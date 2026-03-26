@@ -183,6 +183,11 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                     OnPropertyChanged(nameof(SelectedEventFrequency));
                     OnPropertyChanged(nameof(SelectedEventAmplitude));
                     OnPropertyChanged(nameof(SelectedEventOffset));
+                    OnPropertyChanged(nameof(SelectedEventIsDigitalState));
+                    OnPropertyChanged(nameof(SelectedEventIsPulseTrain));
+                    OnPropertyChanged(nameof(SelectedEventDigitalState));
+                    OnPropertyChanged(nameof(SelectedEventDutyCycle));
+                    OnPropertyChanged(nameof(SelectedEventVHigh));
                     OnPropertyChanged(nameof(SelectedEventHasWaveformParams));
                     OnPropertyChanged(nameof(SelectedEventStartTimeValue));
                     OnPropertyChanged(nameof(SelectedEventDurationValue));
@@ -442,6 +447,71 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
         }
 
         public bool SelectedEventHasWaveformParams => SelectedEvent?.EventType == SignalEventType.Waveform;
+
+        // Digital signal properties
+        public bool SelectedEventIsDigitalState => SelectedEvent?.EventType == SignalEventType.DigitalState;
+        
+        public bool SelectedEventIsPulseTrain => SelectedEvent?.EventType == SignalEventType.PulseTrain;
+
+        public string SelectedEventDigitalState
+        {
+            get
+            {
+                if (SelectedEvent?.Parameters.ContainsKey("state") == true)
+                {
+                    double state = SelectedEvent.Parameters["state"];
+                    return state > 0.5 ? "HIGH" : "LOW";
+                }
+                return "HIGH";
+            }
+            set
+            {
+                if (SelectedEvent?.Parameters != null)
+                {
+                    SelectedEvent.Parameters["state"] = value == "HIGH" ? 1.0 : 0.0;
+                    OnPropertyChanged();
+                    System.Console.WriteLine($"[PARAM CHANGE] Digital state updated to {value} for event '{SelectedEvent.Name}'");
+                }
+            }
+        }
+
+        public double SelectedEventDutyCycle
+        {
+            get => SelectedEvent?.Parameters.ContainsKey("dutyCycle") == true 
+                   ? SelectedEvent.Parameters["dutyCycle"] * 100.0  // Convert 0.0-1.0 to percentage
+                   : 50.0;
+            set
+            {
+                if (SelectedEvent?.Parameters != null)
+                {
+                    SelectedEvent.Parameters["dutyCycle"] = value / 100.0;  // Convert percentage to 0.0-1.0
+                    OnPropertyChanged();
+                    System.Console.WriteLine($"[PARAM CHANGE] Duty cycle updated to {value}% for event '{SelectedEvent.Name}'");
+                }
+            }
+        }
+
+        public string SelectedEventVHigh
+        {
+            get
+            {
+                if (SelectedEvent?.Parameters.ContainsKey("vHigh") == true)
+                {
+                    double vHigh = SelectedEvent.Parameters["vHigh"];
+                    return Math.Abs(vHigh - 3.3) < 0.1 ? "3.3" : "5.0";
+                }
+                return "3.3";
+            }
+            set
+            {
+                if (SelectedEvent?.Parameters != null)
+                {
+                    SelectedEvent.Parameters["vHigh"] = double.Parse(value);
+                    OnPropertyChanged();
+                    System.Console.WriteLine($"[PARAM CHANGE] vHigh updated to {value}V for event '{SelectedEvent.Name}'");
+                }
+            }
+        }
 
         // Property wrapper for Name to detect manual edits
         public string SelectedEventName

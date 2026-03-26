@@ -205,14 +205,15 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
         {
             _logger.Info($"Intentando inicializar como dispositivo digital (PCI-1735U)...");
             
-            // Primero intentamos con entrada digital
-            if (TryInitializeDigitalInputDevice(deviceNumber))
-            {
-                return true;
-            }
+            // CRITICAL FIX: Initialize BOTH input AND output devices
+            // PCI-1735U supports both DI and DO on the same device
+            bool inputOk = TryInitializeDigitalInputDevice(deviceNumber);
+            bool outputOk = TryInitializeDigitalOutputDevice(deviceNumber);
             
-            // Si falla, intentamos con salida digital
-            return TryInitializeDigitalOutputDevice(deviceNumber);
+            _logger.Info($"Digital device init result: Input={inputOk}, Output={outputOk}");
+            
+            // Success if at least one was initialized
+            return inputOk || outputOk;
         }
         
         private bool TryInitializeDigitalInputDevice(int deviceNumber)

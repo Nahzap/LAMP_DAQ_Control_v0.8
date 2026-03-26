@@ -14,7 +14,6 @@
     <Deterministic>true</Deterministic>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <RestorePackages>false</RestorePackages>
-    <RuntimeIdentifiers>win</RuntimeIdentifiers>
   </PropertyGroup>
   <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
     <PlatformTarget>AnyCPU</PlatformTarget>
@@ -113,6 +112,19 @@
     <Compile Include="Core\DAQ\Services\GlobalExceptionLogger.cs" />
     <Compile Include="Core\DAQ\Services\SignalGenerator.cs" />
     <Compile Include="Core\DAQ\Services\SignalLUT.cs" />
+    <!-- HAL - Hardware Abstraction Layer -->
+    <Compile Include="Core\DAQ\HAL\IDigitalHal.cs" />
+    <Compile Include="Core\DAQ\HAL\IAnalogHal.cs" />
+    <Compile Include="Core\DAQ\HAL\AdvantechDigitalHal.cs" />
+    <Compile Include="Core\DAQ\HAL\AdvantechAnalogHal.cs" />
+    <!-- Engine - High Performance Pipeline -->
+    <Compile Include="Core\DAQ\Engine\InputChangeEvent.cs" />
+    <Compile Include="Core\DAQ\Engine\StateGrid.cs" />
+    <Compile Include="Core\DAQ\Engine\HighSpeedInputPoller.cs" />
+    <Compile Include="Core\DAQ\Engine\LogicPipeline.cs" />
+    <Compile Include="Core\DAQ\Engine\SynchronizedOutputDispatcher.cs" />
+    <Compile Include="Core\DAQ\Engine\OutputMetronome.cs" />
+    <Compile Include="Core\DAQ\Engine\DaqEngine.cs" />
     <!-- Signal Manager Core -->
     <Compile Include="Core\SignalManager\Models\SignalEventType.cs" />
     <Compile Include="Core\SignalManager\Models\SignalEvent.cs" />
