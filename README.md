@@ -88,64 +88,7 @@ Para activar el **modo diagnóstico** usando consola estricta (útil si requiere
 
 ## 🛠️ Arquitectura Técnica Resumida
 
-```mermaid
-flowchart TD
-    %% -- Architectural Styling --
-    classDef ui fill:#1F2937,stroke:#3B82F6,stroke-width:2px,color:#FFF,rx:8px,ry:8px
-    classDef core fill:#4C1D95,stroke:#8B5CF6,stroke-width:2px,color:#FFF,rx:8px,ry:8px
-    classDef cache fill:#064E3B,stroke:#10B981,stroke-width:2px,color:#FFF,rx:8px,ry:8px
-    classDef service fill:#7C2D12,stroke:#F97316,stroke-width:2px,color:#FFF,rx:8px,ry:8px
-    classDef device fill:#171717,stroke:#A3A3A3,stroke-width:2px,color:#D4D4D4,rx:8px,ry:8px
-
-    %% --- L1: UI / APP TIER ---
-    subgraph L1 [1. Presentation & Logging Tier]
-        direction LR
-        UI["WPF Main Window<br>(Interactive Timeline)"]:::ui
-        CLI["Console Mode<br>(Diagnostic Execution)"]:::ui
-        Logger["TimestampedLogWriter<br>(System Diagnostics)"]:::ui
-    end
-
-    %% --- L2: DATA-ORIENTED CORE ---
-    subgraph L2 [2. Data-Oriented Core Engine]
-        direction LR
-        Table[("SignalTable<br>(Contiguous Column Memory)")]:::cache
-        Engine["Execution Scheduler<br>(Task.WhenAll + Sync Barriers)"]:::core
-        
-        Engine -. "O(1) Hot-Loop Scans" .-> Table
-    end
-
-    %% --- L3: HARDWARE ABSTRACTION ---
-    subgraph L3 [3. Hardware Abstraction Services]
-        direction LR
-        Ctrl["DAQController<br>(Board Routing Hub)"]:::service
-        SigGen["SignalGenerator<br>(SpinWait / Absolute Time Horizons)"]:::service
-        LUT[("LUT Array Cache<br>(CSV Pre-Computed Waves)")]:::cache
-        
-        SigGen -. "Static O(1) Reads" .-> LUT
-        Ctrl --> SigGen
-    end
-
-    %% --- L4: PHYSICAL HARDWARE ---
-    subgraph L4 [4. Native Advantech Hardware]
-        direction LR
-        API["BDaq API Driver<br>(Advantech.BDaq.dll)"]:::device
-        PCIe1824("PCIe-1824<br>(High-Speed Analog ±10V)"):::device
-        PCI1735("PCI-1735U<br>(Digital IO / Pulse Trains)"):::device
-        
-        API --> PCIe1824
-        API --> PCI1735
-    end
-
-    %% --- INTER-LAYER VERTICAL COMMUNICATION ---
-    UI ==>|"Play / Stop Lifecycle"| Engine
-    CLI ==>|"Args Initialization"| Engine
-    Engine -.->|"State & Error Broadcast"| Logger
-    
-    Engine ==>|"Atomic Parallel Dispatch"| Ctrl
-    
-    SigGen ==>|"Nanosecond Real-Time Writes"| API
-    Ctrl ==>|"Standard R/W Polling"| API
-```
+![Program Workflow Architecture](./Docs/Program_workflow_diagram.png)
 
 ### Notas sobre el `SignalGenerator` (Corazón de Timming):
 Este módulo fue reescrito para pre-cargar estructuras asíncronas de alto rendimiento y manejar Thread Priorities a tope (`ThreadPriority.Highest`). Las fases son forzadas a sincronización de Reloj Real empleando estructuras subyacentes libres de bloqueos pesados como `SpinWait`. El GC (Garbage Collector) se exime casi por completo del loop principal.
