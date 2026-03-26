@@ -452,24 +452,34 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 switch (eventDto.EventType)
                 {
                     case SignalEventType.DC:
-                        if (eventDto.Parameters.TryGetValue("voltage", out double v))
-                            data.SignalTable.Attributes.SetVoltage(index, v);
+                        double dcV = eventDto.Parameters.TryGetValue("voltage", out double v) ? v : 0.0;
+                        data.SignalTable.Attributes.SetVoltage(index, dcV);
                         break;
                     
                     case SignalEventType.Ramp:
-                        if (eventDto.Parameters.TryGetValue("startVoltage", out double sv))
-                            data.SignalTable.Attributes.SetStartVoltage(index, sv);
-                        if (eventDto.Parameters.TryGetValue("endVoltage", out double ev))
-                            data.SignalTable.Attributes.SetEndVoltage(index, ev);
+                        double rSv = eventDto.Parameters.TryGetValue("startVoltage", out double sv) ? sv : 0.0;
+                        double rEv = eventDto.Parameters.TryGetValue("endVoltage", out double ev) ? ev : 5.0;
+                        data.SignalTable.Attributes.SetStartVoltage(index, rSv);
+                        data.SignalTable.Attributes.SetEndVoltage(index, rEv);
                         break;
                     
                     case SignalEventType.Waveform:
-                        if (eventDto.Parameters.TryGetValue("frequency", out double f) &&
-                            eventDto.Parameters.TryGetValue("amplitude", out double a) &&
-                            eventDto.Parameters.TryGetValue("offset", out double o))
-                        {
-                            data.SignalTable.Attributes.SetWaveformParams(index, f, a, o);
-                        }
+                        double wfFreq = eventDto.Parameters.TryGetValue("frequency", out double f) ? f : 1000.0;
+                        double wfAmp = eventDto.Parameters.TryGetValue("amplitude", out double a) ? a : 2.0;
+                        double wfOffset = eventDto.Parameters.TryGetValue("offset", out double o) ? o : 5.0;
+                        data.SignalTable.Attributes.SetWaveformParams(index, wfFreq, wfAmp, wfOffset);
+                        break;
+                    
+                    case SignalEventType.PulseTrain:
+                        double ptFreq = eventDto.Parameters.TryGetValue("frequency", out double ptF) ? ptF : 1000.0;
+                        double ptDuty = eventDto.Parameters.TryGetValue("dutyCycle", out double ptD) ? ptD : 0.5;
+                        double ptVHigh = eventDto.Parameters.TryGetValue("vHigh", out double ptV) ? ptV : 5.0;
+                        data.SignalTable.Attributes.SetWaveformParams(index, ptFreq, ptDuty, ptVHigh);
+                        break;
+                    
+                    case SignalEventType.DigitalState:
+                        if (eventDto.Parameters.TryGetValue("state", out double dsState))
+                            data.SignalTable.Attributes.SetVoltage(index, dsState);
                         break;
                 }
             }
@@ -485,42 +495,46 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             switch (evt.EventType)
             {
                 case SignalEventType.Ramp:
-                    if (evt.Parameters.TryGetValue("startVoltage", out double startV))
-                        table.Attributes.SetStartVoltage(index, startV);
-                    if (evt.Parameters.TryGetValue("endVoltage", out double endV))
-                        table.Attributes.SetEndVoltage(index, endV);
+                    double sV = evt.Parameters.TryGetValue("startVoltage", out double startV) ? startV : 0.0;
+                    double eV = evt.Parameters.TryGetValue("endVoltage", out double endV) ? endV : 5.0;
+                    evt.Parameters["startVoltage"] = sV;
+                    evt.Parameters["endVoltage"] = eV;
+                    table.Attributes.SetStartVoltage(index, sV);
+                    table.Attributes.SetEndVoltage(index, eV);
                     break;
                 
                 case SignalEventType.DC:
-                    if (evt.Parameters.TryGetValue("voltage", out double v))
-                        table.Attributes.SetVoltage(index, v);
+                    double dcV = evt.Parameters.TryGetValue("voltage", out double v) ? v : 0.0;
+                    evt.Parameters["voltage"] = dcV;
+                    table.Attributes.SetVoltage(index, dcV);
                     break;
                 
                 case SignalEventType.Waveform:
-                    if (evt.Parameters.TryGetValue("frequency", out double f) &&
-                        evt.Parameters.TryGetValue("amplitude", out double a) &&
-                        evt.Parameters.TryGetValue("offset", out double o))
-                    {
-                        table.Attributes.SetWaveformParams(index, f, a, o);
-                    }
+                    double wfF = evt.Parameters.TryGetValue("frequency", out double f) ? f : 1000.0;
+                    double wfA = evt.Parameters.TryGetValue("amplitude", out double a) ? a : 2.0;
+                    double wfO = evt.Parameters.TryGetValue("offset", out double o) ? o : 5.0;
+                    evt.Parameters["frequency"] = wfF;
+                    evt.Parameters["amplitude"] = wfA;
+                    evt.Parameters["offset"] = wfO;
+                    table.Attributes.SetWaveformParams(index, wfF, wfA, wfO);
                     break;
                 
                 case SignalEventType.DigitalState:
                     // Store state as voltage (1.0 = HIGH, 0.0 = LOW)
-                    if (evt.Parameters.TryGetValue("state", out double state))
-                    {
-                        table.Attributes.SetVoltage(index, state);
-                    }
+                    double st = evt.Parameters.TryGetValue("state", out double state) ? state : 1.0;
+                    evt.Parameters["state"] = st;
+                    table.Attributes.SetVoltage(index, st);
                     break;
                 
                 case SignalEventType.PulseTrain:
                     // Store PulseTrain params using waveform storage (frequency, dutyCycle, vHigh)
-                    if (evt.Parameters.TryGetValue("frequency", out double freq) &&
-                        evt.Parameters.TryGetValue("dutyCycle", out double duty) &&
-                        evt.Parameters.TryGetValue("vHigh", out double vHigh))
-                    {
-                        table.Attributes.SetWaveformParams(index, freq, duty, vHigh);
-                    }
+                    double ptF = evt.Parameters.TryGetValue("frequency", out double freq) ? freq : 1000.0;
+                    double ptD = evt.Parameters.TryGetValue("dutyCycle", out double duty) ? duty : 0.5;
+                    double ptV = evt.Parameters.TryGetValue("vHigh", out double vHigh) ? vHigh : 5.0;
+                    evt.Parameters["frequency"] = ptF;
+                    evt.Parameters["dutyCycle"] = ptD;
+                    evt.Parameters["vHigh"] = ptV;
+                    table.Attributes.SetWaveformParams(index, ptF, ptD, ptV);
                     break;
             }
         }

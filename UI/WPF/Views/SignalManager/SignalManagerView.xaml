@@ -196,7 +196,8 @@
                                                  Margin="0,0,0,10"/>
 
                                         <TextBlock Text="Event Type:" FontWeight="Bold" Margin="0,0,0,5"/>
-                                        <ComboBox SelectedItem="{Binding SelectedEvent.EventType}" 
+                                        <ComboBox ItemsSource="{Binding EventTypes}"
+                                                  SelectedItem="{Binding SelectedEvent.EventType}" 
                                                   Margin="0,0,0,10"/>
 
                                         <TextBlock Text="Channel:" FontWeight="Bold" Margin="0,0,0,5"/>
@@ -224,6 +225,25 @@
                                         <TextBox Text="{Binding SelectedEventEndVoltage, UpdateSourceTrigger=PropertyChanged}" 
                                                  Margin="0,0,0,10"
                                                  Visibility="{Binding SelectedEventHasRampVoltages, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                                        <!-- Waveform Parameters -->
+                                        <TextBlock Text="Frequency (Hz):" FontWeight="Bold" Margin="0,0,0,5"
+                                                   Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <TextBox Text="{Binding SelectedEventFrequency, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"
+                                                 Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                                        <TextBlock Text="Amplitude (V):" FontWeight="Bold" Margin="0,0,0,5"
+                                                   Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <TextBox Text="{Binding SelectedEventAmplitude, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"
+                                                 Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+
+                                        <TextBlock Text="Offset (V):" FontWeight="Bold" Margin="0,0,0,5"
+                                                   Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
+                                        <TextBox Text="{Binding SelectedEventOffset, UpdateSourceTrigger=PropertyChanged}" 
+                                                 Margin="0,0,0,10"
+                                                 Visibility="{Binding SelectedEventHasWaveformParams, Converter={StaticResource BoolToVisibilityConverter}}"/>
 
                                         <!-- Digital State (HIGH/LOW) -->
                                         <TextBlock Text="Digital State:" FontWeight="Bold" Margin="0,0,0,5"

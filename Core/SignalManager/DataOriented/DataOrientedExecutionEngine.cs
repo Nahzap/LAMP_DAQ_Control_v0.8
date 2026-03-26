@@ -256,7 +256,10 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     DAQ.Services.SignalGenerator.PreparePhaseBarrier(waveformCount);
                 }
                 
-                System.Console.WriteLine($"[DO PARALLEL] Launching {groupIndices.Count} events at {currentGroupStartNs / 1e9:F6}s");
+                // CRITICAL SYNC: Pre-calculate an exact execution horizon where all Task.Run threads will wait for
+                // ThreadPool dispatch jitter. E.g. 5ms from now.
+                long currentElapsedNs = (long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds);
+                long exactSyncHorizonNs = currentElapsedNs + 5_000_000;
                 
                 // Launch ALL events in this group simultaneously
                 // Long-running events are fire-and-forget (tracked in backgroundTasks)
@@ -274,7 +277,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                                           eventType == SignalEventType.DigitalState ||
                                           eventType == SignalEventType.DigitalPulse);
                     
-                    var task = Task.Run(() => ExecuteEventAtIndexAsync(table, capturedIndex, cancellationToken), cancellationToken);
+                    var task = Task.Run(() => ExecuteEventAtIndexAsync(table, capturedIndex, exactSyncHorizonNs, cancellationToken), cancellationToken);
                     
                     if (isLongRunning)
                     {
@@ -327,20 +330,30 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
         /// <summary>
         /// Executes a single event by index (no object allocation)
         /// </summary>
-        private async Task ExecuteEventAtIndexAsync(SignalTable table, int index, CancellationToken cancellationToken)
+        private async Task ExecuteEventAtIndexAsync(SignalTable table, int index, long syncHorizonNs, CancellationToken cancellationToken)
         {
             var eventType = table.EventTypes[index];
             var deviceModel = table.DeviceModels[index];
             var channel = table.Channels[index];
             var durationNs = table.DurationsNs[index];
             
-            System.Console.WriteLine($"[DO EXEC ENGINE] Executing {eventType} on {deviceModel} CH{channel}");
+            System.Console.WriteLine($"[DO EXEC ENGINE] Initializing {eventType} on {deviceModel} CH{channel} (waiting for exact sync...)");
             
             if (!_deviceControllers.TryGetValue(deviceModel, out var controller))
             {
                 System.Console.WriteLine($"[DO EXEC ENGINE ERROR] Device controller not found: {deviceModel}");
                 return;
             }
+            
+            // JITTER SYNC: Wait exactly for the nanosecond horizon before executing hardware calls
+            long initialElapsedNs = (long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds);
+            long waitNs = syncHorizonNs - initialElapsedNs;
+            if (waitNs > 0)
+            {
+                await HighPrecisionWaitAsync(waitNs, cancellationToken);
+            }
+            
+            System.Console.WriteLine($"[DO EXEC ENGINE] EXECUTING {eventType} on {deviceModel} CH{channel} AT SYNC TIMESTAMP!");
             
             switch (eventType)
             {
@@ -477,24 +490,47 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     var (frequency, dutyCycle, vHigh) = table.Attributes.GetWaveformParams(index);
                     double vLow = 0.0;
                     
-                    System.Console.WriteLine($"[DO EXEC ENGINE] PulseTrain: {frequency}Hz, {dutyCycle * 100:F1}% duty, {vHigh:F1}V high");
+                    // UX FIX: Divide frequency by 2 internally. 
+                    // Measurement gear often counts 1 edge = 1 toggle = user expects 1000 toggles/s for "1000Hz".
+                    // 1 cycle = HIGH + LOW = 2 toggles. So 1000Hz on UI = 500 internal cycles.
+                    double hardwareFrequency = frequency / 2.0;
+                    
+                    System.Console.WriteLine($"[DO EXEC ENGINE] PulseTrain UI Freq: {frequency}Hz -> Internal Cycle Freq: {hardwareFrequency}Hz, {dutyCycle * 100:F1}% duty, {vHigh:F1}V high");
+                    
+                    // Validate parameters
+                    if (hardwareFrequency <= 0)
+                    {
+                        System.Console.WriteLine($"[DO PULSE TRAIN ERROR] Invalid frequency: {frequency}Hz, skipping");
+                        break;
+                    }
+                    if (dutyCycle <= 0 || dutyCycle > 1.0)
+                    {
+                        System.Console.WriteLine($"[DO PULSE TRAIN ERROR] Invalid duty cycle: {dutyCycle}, skipping");
+                        break;
+                    }
                     
                     int portPT = channel / 8;
                     int bitPT = channel % 8;
                     
-                    // Calculate timing
-                    double periodMs = 1000.0 / frequency;
-                    int highTimeMs = (int)(periodMs * dutyCycle);
-                    int lowTimeMs = (int)(periodMs * (1.0 - dutyCycle));
+                    // Calculate timing in TICKS for high-precision (Stopwatch ticks, not DateTime ticks)
+                    double periodSeconds = 1.0 / hardwareFrequency;
+                    double highTimeSeconds = periodSeconds * dutyCycle;
+                    double lowTimeSeconds = periodSeconds * (1.0 - dutyCycle);
                     
-                    if (highTimeMs < 1) highTimeMs = 1;
-                    if (lowTimeMs < 1) lowTimeMs = 1;
+                    long swFreq = System.Diagnostics.Stopwatch.Frequency;
+                    long highTimeTicks = (long)(highTimeSeconds * swFreq);
+                    long lowTimeTicks = (long)(lowTimeSeconds * swFreq);
                     
                     long endTimeNs = table.StartTimesNs[index] + durationNs;
                     
-                    System.Console.WriteLine($"[DO PULSE TRAIN] Period: {periodMs:F2}ms, High: {highTimeMs}ms, Low: {lowTimeMs}ms");
+                    System.Console.WriteLine($"[DO PULSE TRAIN] Period: {periodSeconds * 1000:F3}ms, High: {highTimeSeconds * 1000:F3}ms, Low: {lowTimeSeconds * 1000:F3}ms");
+                    System.Console.WriteLine($"[DO PULSE TRAIN] SW Freq: {swFreq}Hz, HighTicks: {highTimeTicks}, LowTicks: {lowTimeTicks}");
                     
-                    // Generate pulse train until duration expires
+                    // HIGH-PRECISION pulse train loop using SpinWait instead of Task.Delay
+                    // Task.Delay has ~15ms minimum resolution on Windows - useless for >60Hz signals
+                    var pulseTimer = System.Diagnostics.Stopwatch.StartNew();
+                    long cycleCount = 0;
+                    
                     while (!cancellationToken.IsCancellationRequested)
                     {
                         long elapsedNs = (long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds);
@@ -502,7 +538,12 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                         
                         // HIGH phase
                         controller.WriteDigitalBit(portPT, bitPT, true);
-                        await Task.Delay(highTimeMs, cancellationToken);
+                        long phaseStart = pulseTimer.ElapsedTicks;
+                        while (pulseTimer.ElapsedTicks - phaseStart < highTimeTicks)
+                        {
+                            if (cancellationToken.IsCancellationRequested) break;
+                            System.Threading.Thread.SpinWait(1);
+                        }
                         
                         // Check if we should continue
                         elapsedNs = (long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds);
@@ -510,12 +551,19 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                         
                         // LOW phase
                         controller.WriteDigitalBit(portPT, bitPT, false);
-                        await Task.Delay(lowTimeMs, cancellationToken);
+                        phaseStart = pulseTimer.ElapsedTicks;
+                        while (pulseTimer.ElapsedTicks - phaseStart < lowTimeTicks)
+                        {
+                            if (cancellationToken.IsCancellationRequested) break;
+                            System.Threading.Thread.SpinWait(1);
+                        }
+                        
+                        cycleCount++;
                     }
                     
                     // Ensure LOW at end
                     controller.WriteDigitalBit(portPT, bitPT, false);
-                    System.Console.WriteLine($"[DO PULSE TRAIN] Completed on {deviceModel} CH{channel}");
+                    System.Console.WriteLine($"[DO PULSE TRAIN] Completed on {deviceModel} CH{channel}: {cycleCount} cycles in {pulseTimer.Elapsed.TotalSeconds:F3}s (effective: {cycleCount / pulseTimer.Elapsed.TotalSeconds:F1}Hz)");
                     break;
             }
         }

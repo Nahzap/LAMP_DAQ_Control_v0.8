@@ -4,7 +4,7 @@
   "Description": "",
   "DesiredDurationSeconds": 10.0,
   "Created": "2026-03-17T15:14:58.220175-03:00",
-  "Modified": "2026-03-26T11:16:17.4002029-03:00",
+  "Modified": "2026-03-26T12:17:32.568467-03:00",
   "Version": "1.0",
   "Events": [
     {
@@ -79,6 +79,34 @@
         "frequency": 1000.0,
         "amplitude": 2.0,
         "offset": 2.0
+      }
+    },
+    {
+      "EventId": "5dc8c8b2-babd-4dbd-ad66-946fcff1321d",
+      "Name": "DC 0V",
+      "StartTimeNs": 7000000000,
+      "DurationNs": 1000000000,
+      "Channel": 0,
+      "DeviceType": 1,
+      "DeviceModel": "PCIE-1824",
+      "EventType": 0,
+      "Color": "#3498DB",
+      "Parameters": {
+        "voltage": 0.0
+      }
+    },
+    {
+      "EventId": "4333c54e-eaed-40d5-a45d-38644f4ba231",
+      "Name": "DC 0V",
+      "StartTimeNs": 7000000000,
+      "DurationNs": 1000000000,
+      "Channel": 1,
+      "DeviceType": 1,
+      "DeviceModel": "PCIE-1824",
+      "EventType": 0,
+      "Color": "#3498DB",
+      "Parameters": {
+        "voltage": 0.0
       }
     }
   ]

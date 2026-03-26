@@ -448,6 +448,9 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
 
         public bool SelectedEventHasWaveformParams => SelectedEvent?.EventType == SignalEventType.Waveform;
 
+        // Enum values for ComboBox
+        public IEnumerable<SignalEventType> EventTypes => Enum.GetValues(typeof(SignalEventType)).Cast<SignalEventType>();
+
         // Digital signal properties
         public bool SelectedEventIsDigitalState => SelectedEvent?.EventType == SignalEventType.DigitalState;
         
@@ -1006,6 +1009,26 @@ namespace LAMP_DAQ_Control_v0_8.UI.WPF.ViewModels.SignalManager
                         double offset = SelectedEvent.Parameters.ContainsKey("offset") ? SelectedEvent.Parameters["offset"] : 5.0;
                         table.Attributes.SetWaveformParams(i, freq, amp, offset);
                         System.Console.WriteLine($"[APPLY CHANGES] Updated waveform: {freq}Hz, {amp}V amp, {offset}V offset");
+                    }
+                    else if (SelectedEvent.EventType == SignalEventType.PulseTrain)
+                    {
+                        double freq = SelectedEvent.Parameters.ContainsKey("frequency") ? SelectedEvent.Parameters["frequency"] : 1000;
+                        double duty = SelectedEvent.Parameters.ContainsKey("dutyCycle") ? SelectedEvent.Parameters["dutyCycle"] : 0.5;
+                        double vHigh = SelectedEvent.Parameters.ContainsKey("vHigh") ? SelectedEvent.Parameters["vHigh"] : 5.0;
+                        table.Attributes.SetWaveformParams(i, freq, duty, vHigh);
+                        System.Console.WriteLine($"[APPLY CHANGES] Updated PulseTrain: {freq}Hz, {duty * 100:F1}% duty, {vHigh}V high");
+                    }
+                    else if (SelectedEvent.EventType == SignalEventType.DC)
+                    {
+                        double voltage = SelectedEvent.Parameters.ContainsKey("voltage") ? SelectedEvent.Parameters["voltage"] : 0;
+                        table.Attributes.SetVoltage(i, voltage);
+                        System.Console.WriteLine($"[APPLY CHANGES] Updated DC: {voltage}V");
+                    }
+                    else if (SelectedEvent.EventType == SignalEventType.DigitalState)
+                    {
+                        double state = SelectedEvent.Parameters.ContainsKey("state") ? SelectedEvent.Parameters["state"] : 0;
+                        table.Attributes.SetVoltage(i, state);
+                        System.Console.WriteLine($"[APPLY CHANGES] Updated DigitalState: {(state > 0.5 ? "HIGH" : "LOW")}");
                     }
                     
                     System.Console.WriteLine($"[APPLY CHANGES] Successfully updated DO table at index {i}");
