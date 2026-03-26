@@ -89,28 +89,65 @@ Para activar el **modo diagnóstico** usando consola estricta (útil si requiere
 ## 🛠️ Arquitectura Técnica Resumida
 
 ```mermaid
-flowchart TD
-    %% Sistema Base
-    Program["Program.cs (WPF / Console)"]:::entryPoint
+flowchart TB
+    %% Definición de Estilos Modernos
+    classDef ui fill:#2b3a42,stroke:#3f80a6,stroke-width:2px,color:#fff,rx:5px,ry:5px
+    classDef doEngine fill:#38275c,stroke:#865cd6,stroke-width:2px,color:#fff,rx:5px,ry:5px
+    classDef memory fill:#1f422e,stroke:#39a363,stroke-width:2px,color:#fff,rx:5px,ry:5px
+    classDef hwAbstraction fill:#7d3e26,stroke:#ba6c54,stroke-width:2px,color:#fff,rx:5px,ry:5px
+    classDef hardware fill:#1a1a1a,stroke:#666,stroke-width:2px,color:#ddd,rx:5px,ry:5px
+
+    %% Capa 1: Interface y Usuario
+    subgraph UI_Layer [Capa Visual y Control de Sesión]
+        direction LR
+        WPF["Pantalla Principal WPF (MVVM)<br/>Interface de Línea de Tiempo"]:::ui
+        Console["Modo Terminal / Consola<br/>Modo Legacy de Diagnóstico"]:::ui
+        GlobalLog["TimestampedLogWriter<br/>Interceptor Global de Logs"]:::ui
+    end
+
+    %% Capa 2: Motor de Ejecución Data-Oriented (El Corazón)
+    subgraph DO_Layer [Data-Oriented Execution Engine]
+        direction TB
+        SigTable[("SignalTable<br/>Memoria Contigua (Column Storage)")]:::memory
+        Engine["DataOrientedExecutionEngine<br/>Parallel Iterator & Master Scheduler"]:::doEngine
+        
+        %% Interacciones Internas
+        Engine -- "Lecturas Acopladas O(1)" --> SigTable
+        Engine -- "SpinWait (Zero Drift)<br/>Cálculos en Time Horizons Atómicos" --> Engine
+    end
+
+    %% Capa 3: Abstracción de Hardware y Pipelines
+    subgraph HW_Abstraction [DAQ Services & Caches]
+        direction LR
+        DAQCtrl["DAQController<br/>Enrutador de Tarjetas"]:::hwAbstraction
+        SigGen["SignalGenerator<br/>(Threading Priority + Hybrid Sleep)"]:::hwAbstraction
+        LUTCache[("Static LUT Cache<br/>Precálculo Trigonométrico CSV")]:::memory
+        
+        SigGen -- "Vectorización para<br/>Señales Analógicas" --> LUTCache
+    end
+
+    %% Capa 4: Tarjetas Físicas
+    subgraph Hardware [Hardware Advantech Serie PCIe / PCI]
+        direction LR
+        BDaq["Librería Advantech.BDaq"]:::hardware
+        PCIe1824["Tarjeta PCIe-1824<br/>(Generación Analógica Alta Densidad)"]:::hardware
+        PCI1735["Tarjeta PCI-1735U<br/>(E/S Digitales Fast PulseTrain)"]:::hardware
+        
+        BDaq -- "Firmware Call" --> PCIe1824
+        BDaq -- "Firmware Call" --> PCI1735
+    end
+
+    %% Conexiones Globales de la Arquitectura
+    WPF -- "Envía comandos Start/Stop" --> Engine
+    Console -- "Señales de CLI Args" --> Engine
+    Engine -. "Desvía mensajes a Disco" .-> GlobalLog
     
-    %% Engine Data-Oriented
-    subgraph DataOriented["Data-Oriented Execution Engine"]
-        SignalTable["SignalTable (Column Storage)"]:::core
-        DOEngine["DataOrientedExecutionEngine"]:::core
-        DOEngine -- Lee memoria atómica --> SignalTable
-    end
-
-    %% Capa de Abstracción DAQ
-    subgraph Services["DAQ Services & Hardware"]
-        DAQController["DAQController"]:::services
-        SignalGen["SignalGenerator (LUT Cache + SpinWait)"]:::services
-        AdvDev["Advantech.BDaq (PCI/PCIe)"]:::external
-    end
-
-    Program --> DataOriented
-    DOEngine --> DAQController
-    DAQController --> SignalGen
-    SignalGen -.-> AdvDev
+    Engine -- "Despacho Paralelo <br/>Task.WhenAll + Sync Barriers" --> DAQCtrl
+    
+    DAQCtrl -- "Subdelega Frecuencias<br/>Altas Continuas" --> SigGen
+    DAQCtrl -- "Delega Rutinas Digitales" --> BDaq
+    
+    SigGen -- "Write Pipeline de Grado Estricto" --> BDaq
 ```
 
 ### Notas sobre el `SignalGenerator` (Corazón de Timming):
