@@ -490,15 +490,10 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     var (frequency, dutyCycle, vHigh) = table.Attributes.GetWaveformParams(index);
                     double vLow = 0.0;
                     
-                    // UX FIX: Divide frequency by 2 internally. 
-                    // Measurement gear often counts 1 edge = 1 toggle = user expects 1000 toggles/s for "1000Hz".
-                    // 1 cycle = HIGH + LOW = 2 toggles. So 1000Hz on UI = 500 internal cycles.
-                    double hardwareFrequency = frequency / 2.0;
-                    
-                    System.Console.WriteLine($"[DO EXEC ENGINE] PulseTrain UI Freq: {frequency}Hz -> Internal Cycle Freq: {hardwareFrequency}Hz, {dutyCycle * 100:F1}% duty, {vHigh:F1}V high");
+                    System.Console.WriteLine($"[DO EXEC ENGINE] PulseTrain: {frequency}Hz, {dutyCycle * 100:F1}% duty, {vHigh:F1}V high");
                     
                     // Validate parameters
-                    if (hardwareFrequency <= 0)
+                    if (frequency <= 0)
                     {
                         System.Console.WriteLine($"[DO PULSE TRAIN ERROR] Invalid frequency: {frequency}Hz, skipping");
                         break;
@@ -513,7 +508,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                     int bitPT = channel % 8;
                     
                     // Calculate timing in TICKS for high-precision (Stopwatch ticks, not DateTime ticks)
-                    double periodSeconds = 1.0 / hardwareFrequency;
+                    double periodSeconds = 1.0 / frequency;
                     double highTimeSeconds = periodSeconds * dutyCycle;
                     double lowTimeSeconds = periodSeconds * (1.0 - dutyCycle);
                     

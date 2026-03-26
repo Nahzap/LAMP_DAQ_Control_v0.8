@@ -31,12 +31,27 @@
 
         <!-- Channel Row Style -->
         <Style x:Key="ChannelRowStyle" TargetType="Border">
-            <Setter Property="BorderBrush" Value="#DDD"/>
+            <Setter Property="BorderBrush" Value="Black"/>
             <Setter Property="BorderThickness" Value="0,0,0,1"/>
-            <Setter Property="Background" Value="White"/>
+            <Setter Property="Background" Value="Transparent"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="#F0F8FF"/>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
+
+        <!-- Channel Label Label Style -->
+        <Style x:Key="ChannelLabelBorderStyle" TargetType="Border" BasedOn="{StaticResource ChannelRowStyle}">
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding DeviceType}" Value="Digital">
+                    <Setter Property="Background" Value="#E6F2FF"/> <!-- Azul tenue -->
+                </DataTrigger>
+                <DataTrigger Binding="{Binding DeviceType}" Value="Analog">
+                    <Setter Property="Background" Value="#FFF0E6"/> <!-- Naranja tenue -->
+                </DataTrigger>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Opacity" Value="0.8"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -91,7 +106,7 @@
                         </ItemsControl.ItemsPanel>
                         <ItemsControl.ItemTemplate>
                             <DataTemplate>
-                                <Border Height="40" Style="{StaticResource ChannelRowStyle}" Padding="10,0">
+                                <Border Height="40" Style="{StaticResource ChannelLabelBorderStyle}" Padding="10,0">
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{Binding ChannelName}" FontWeight="Bold" FontSize="11"/>
                                         <TextBlock Text="{Binding DeviceType}" FontSize="9" Foreground="#666"/>
