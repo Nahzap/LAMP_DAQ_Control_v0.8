@@ -423,7 +423,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                 {
                     byte data = value ? (byte)1 : (byte)0;
                     _digitalOutputDevice.WriteBit(port, bit, data);
-                    _logger.Debug($"Digital port {port}, bit {bit} updated to {value}");
+                    // _logger.Debug($"Digital port {port}, bit {bit} updated to {value}"); // HOT PATH BOTTLENECK REMOVED
                 }
                 else
                 {
@@ -434,6 +434,18 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
             {
                 _logger.Error($"Error writing to digital port {port}, bit {bit}", ex);
                 throw new DAQOperationException($"Error writing to digital port {port}, bit {bit}", ex);
+            }
+        }
+
+        /// <summary>
+        /// Escribe un valor digital (0 o 1) evadiendo todo login e interceptación de errores para Hot-Paths.
+        /// Necesario para superar los 62.5kHz en PulseTrains.
+        /// </summary>
+        public void WriteDigitalBitFast(int port, int bit, bool value)
+        {
+            if (_digitalOutputDevice != null)
+            {
+                _digitalOutputDevice.WriteBit(port, bit, value ? (byte)1 : (byte)0);
             }
         }
         

@@ -392,6 +392,15 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
             else
                 _deviceManager.WriteDigitalBit(port, bit, value);
         }
+
+        /// <summary>
+        /// Acceso de ultra-baja latencia para WriteDigitalBit, ignorando logs y chequeos.
+        /// Usado primariamente por DataOrientedExecutionEngine para generar Pulse Trains >100kHz
+        /// </summary>
+        public void WriteDigitalBitFast(int port, int bit, bool value)
+        {
+            _deviceManager.WriteDigitalBitFast(port, bit, value);
+        }
         
         /// <summary>
         /// Lee el valor de un bit específico de un puerto digital.

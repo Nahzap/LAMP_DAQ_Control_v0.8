@@ -77,6 +77,11 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Interfaces
         bool ReadDigitalBit(int port, int bit);
 
         /// <summary>
+        /// Fast-path for high frequency pulse trains, bypasses logging and error handling.
+        /// </summary>
+        void WriteDigitalBitFast(int port, int bit, bool value);
+
+        /// <summary>
         /// HIGH-01: Loads an SDK profile file, routing to the correct controller based on device type.
         /// For analog: calls InstantAoCtrl.LoadProfile()
         /// For digital: logs and skips (digital doesn't use SDK profiles)

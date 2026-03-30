@@ -557,7 +557,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                         if ((long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds) >= endTimeNs) break;
                         
                         // HIGH phase
-                        controller.WriteDigitalBit(portPT, bitPT, true);
+                        controller.WriteDigitalBitFast(portPT, bitPT, true);
                         while (pulseTimer.ElapsedTicks < nextHighEndTicks)
                         {
                             if (cancellationToken.IsCancellationRequested) break;
@@ -567,7 +567,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                         if ((long)(_executionTimer.ElapsedTicks * _ticksToNanoseconds) >= endTimeNs) break;
                         
                         // LOW phase
-                        controller.WriteDigitalBit(portPT, bitPT, false);
+                        controller.WriteDigitalBitFast(portPT, bitPT, false);
                         while (pulseTimer.ElapsedTicks < nextLowEndTicks)
                         {
                             if (cancellationToken.IsCancellationRequested) break;
