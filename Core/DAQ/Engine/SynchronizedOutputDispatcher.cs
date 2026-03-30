@@ -7,14 +7,20 @@ using LAMP_DAQ_Control_v0_8.Core.DAQ.Interfaces;
 namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
 {
     /// <summary>
-    /// Synchronized output dispatcher using Barrier for simultaneous digital+analog writes.
+    /// Synchronized output dispatcher using ManualResetEventSlim for simultaneous digital+analog writes.
+    /// 
+    /// HIGH-02 FIX: Replaced Barrier with signal-based sync pattern.
+    /// The Barrier had asymmetric timeouts (50ms vs 100ms) that caused phase desync on timeout,
+    /// and Dispose() during Stop() was unsafe while threads were blocked in SignalAndWait().
+    /// 
+    /// HIGH-03 FIX: TriggerCycle now receives pre-consumed masks from the Metronome,
+    /// eliminating the race condition where bits set between dispatch and clear were lost.
     /// 
     /// Architecture:
     ///   - Two dedicated threads: one for digital, one for analog
-    ///   - Both wait on a Barrier signal from the OutputMetronome
-    ///   - When released simultaneously, both write to their respective hardware
-    ///   - Digital thread writes only changed ports (masked)
-    ///   - Analog thread writes only active channels (masked)
+    ///   - Metronome sets _triggerEvent to release both threads simultaneously
+    ///   - Each thread reads its pre-consumed mask, writes to hardware, signals done
+    ///   - Metronome waits for both done signals before returning
     ///   - No computation in the write path — pure I/O for minimum jitter
     /// </summary>
     public class SynchronizedOutputDispatcher : IDisposable
@@ -28,11 +34,18 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
         private Thread _analogThread;
         private volatile bool _running;
 
-        // Barrier for synchronized release: 3 participants (digital, analog, metronome)
-        private Barrier _syncBarrier;
+        // HIGH-02 FIX: Signal-based sync replaces Barrier
+        private readonly ManualResetEventSlim _triggerEvent;  // Set by Metronome to release write threads
+        private readonly ManualResetEventSlim _digitalDone;   // Set by digital thread when write completes
+        private readonly ManualResetEventSlim _analogDone;    // Set by analog thread when write completes
 
-        // Signal from Metronome that a new cycle is ready
-        private readonly ManualResetEventSlim _cycleReady;
+        // HIGH-03 FIX: Pre-consumed masks passed from Metronome
+        private volatile uint _pendingDigitalMask;
+        private volatile uint _pendingAnalogMask;
+
+        // Track which threads are active
+        private bool _hasDigitalThread;
+        private bool _hasAnalogThread;
 
         // Statistics
         private long _digitalWriteCount;
@@ -62,7 +75,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
             _stateGrid = stateGrid ?? throw new ArgumentNullException(nameof(stateGrid));
             _logger = logger ?? throw new ArgumentNullException(nameof(logger));
 
-            _cycleReady = new ManualResetEventSlim(false);
+            _triggerEvent = new ManualResetEventSlim(false);
+            _digitalDone = new ManualResetEventSlim(true);  // Initially signaled (no pending work)
+            _analogDone = new ManualResetEventSlim(true);   // Initially signaled (no pending work)
         }
 
         /// <summary>
@@ -76,24 +91,17 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
 
             _running = true;
 
-            bool hasDigital = _digitalHal != null && _digitalHal.IsReady;
-            bool hasAnalog = _analogHal != null && _analogHal.IsReady;
+            _hasDigitalThread = _digitalHal != null && _digitalHal.IsReady;
+            _hasAnalogThread = _analogHal != null && _analogHal.IsReady;
 
-            if (!hasDigital && !hasAnalog)
+            if (!_hasDigitalThread && !_hasAnalogThread)
             {
                 _logger.Warn("[Dispatcher] No HAL devices ready, dispatcher not started");
                 _running = false;
                 return;
             }
 
-            // Barrier participants = active threads + 1 (metronome caller)
-            int participants = 1; // metronome always participates
-            if (hasDigital) participants++;
-            if (hasAnalog) participants++;
-
-            _syncBarrier = new Barrier(participants);
-
-            if (hasDigital)
+            if (_hasDigitalThread)
             {
                 _digitalThread = new Thread(DigitalWriteLoop)
                 {
@@ -104,7 +112,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
                 _digitalThread.Start();
             }
 
-            if (hasAnalog)
+            if (_hasAnalogThread)
             {
                 _analogThread = new Thread(AnalogWriteLoop)
                 {
@@ -115,36 +123,50 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
                 _analogThread.Start();
             }
 
-            _logger.Info($"[Dispatcher] Started (Digital={hasDigital}, Analog={hasAnalog}, Barrier participants={participants})");
+            _logger.Info($"[Dispatcher] Started (Digital={_hasDigitalThread}, Analog={_hasAnalogThread})");
         }
 
         /// <summary>
         /// Called by the OutputMetronome to trigger a synchronized write cycle.
-        /// This method participates in the Barrier, releasing all threads simultaneously.
+        /// HIGH-03 FIX: Receives pre-consumed masks (atomically read-and-cleared by Metronome).
+        /// HIGH-02 FIX: Uses ManualResetEventSlim instead of Barrier for robust sync.
         /// </summary>
-        public void TriggerCycle()
+        public void TriggerCycle(uint digitalMask, uint analogMask)
         {
-            if (!_running || _syncBarrier == null)
+            if (!_running)
                 return;
 
             try
             {
-                // Signal that a new cycle is ready
-                _cycleReady.Set();
+                // Store consumed masks for the write threads
+                _pendingDigitalMask = digitalMask;
+                _pendingAnalogMask = analogMask;
 
-                // Participate in barrier — this releases all threads at the same instant
-                _syncBarrier.SignalAndWait(50); // 50ms timeout to avoid deadlock
+                // Reset done signals for active threads
+                if (_hasDigitalThread) _digitalDone.Reset();
+                if (_hasAnalogThread) _analogDone.Reset();
+
+                // Release write threads simultaneously
+                _triggerEvent.Set();
+
+                // Wait for both threads to complete their writes (50ms timeout)
+                bool allDone = true;
+                if (_hasDigitalThread)
+                    allDone &= _digitalDone.Wait(50);
+                if (_hasAnalogThread)
+                    allDone &= _analogDone.Wait(50);
+
+                if (!allDone)
+                {
+                    _logger.Warn("[Dispatcher] Write threads did not complete within 50ms timeout");
+                }
 
                 Interlocked.Increment(ref _cycleCount);
 
-                // Reset for next cycle
-                _cycleReady.Reset();
+                // Reset trigger for next cycle
+                _triggerEvent.Reset();
             }
-            catch (BarrierPostPhaseException)
-            {
-                // Post-phase action threw — non-critical
-            }
-            catch (OperationCanceledException)
+            catch (ObjectDisposedException)
             {
                 // Shutting down
             }
@@ -155,7 +177,22 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
         }
 
         /// <summary>
-        /// Digital output thread. Waits at barrier, then writes changed ports.
+        /// Backward-compatible overload (no masks). Reads masks from StateGrid directly.
+        /// Used by any legacy callers that haven't been updated.
+        /// </summary>
+        public void TriggerCycle()
+        {
+            uint digitalMask = _stateGrid.ConsumeDigitalOutputMask();
+            uint analogMask = _stateGrid.ConsumeAnalogOutputMask();
+            if (digitalMask != 0 || analogMask != 0)
+            {
+                TriggerCycle(digitalMask, analogMask);
+            }
+        }
+
+        /// <summary>
+        /// Digital output thread. Waits for trigger, then writes changed ports.
+        /// HIGH-02 FIX: Uses ManualResetEventSlim instead of Barrier.
         /// </summary>
         private void DigitalWriteLoop()
         {
@@ -167,11 +204,12 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
                 {
                     try
                     {
-                        // Wait at barrier for synchronized release
-                        _syncBarrier.SignalAndWait(100);
+                        // Wait for trigger from Metronome (100ms timeout for shutdown check)
+                        if (!_triggerEvent.Wait(100))
+                            continue; // Timeout — re-check _running
 
-                        // Read what needs to be written
-                        uint requiredMask = _stateGrid.RequiredDigitalOutputMask;
+                        // Read pre-consumed mask
+                        uint requiredMask = _pendingDigitalMask;
                         if (requiredMask != 0)
                         {
                             uint state = _stateGrid.DigitalOutputState;
@@ -187,12 +225,17 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
                             Interlocked.Increment(ref _digitalWriteCount);
                         }
                     }
-                    catch (BarrierPostPhaseException) { }
+                    catch (ObjectDisposedException) { break; }
                     catch (OperationCanceledException) { break; }
                     catch (Exception ex)
                     {
                         _logger.Error("[Dispatcher] Digital write error", ex);
                         Thread.Sleep(1); // Prevent tight error loop
+                    }
+                    finally
+                    {
+                        // Always signal done, even on error
+                        try { _digitalDone.Set(); } catch { }
                     }
                 }
             }
@@ -207,7 +250,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
         }
 
         /// <summary>
-        /// Analog output thread. Waits at barrier, then writes active channels.
+        /// Analog output thread. Waits for trigger, then writes active channels.
+        /// HIGH-02 FIX: Uses ManualResetEventSlim instead of Barrier.
         /// </summary>
         private void AnalogWriteLoop()
         {
@@ -219,11 +263,12 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
                 {
                     try
                     {
-                        // Wait at barrier for synchronized release
-                        _syncBarrier.SignalAndWait(100);
+                        // Wait for trigger from Metronome (100ms timeout for shutdown check)
+                        if (!_triggerEvent.Wait(100))
+                            continue; // Timeout — re-check _running
 
-                        // Read what needs to be written
-                        uint requiredMask = _stateGrid.RequiredAnalogOutputMask;
+                        // Read pre-consumed mask
+                        uint requiredMask = _pendingAnalogMask;
                         if (requiredMask != 0)
                         {
                             // Swap buffers (double buffering)
@@ -233,12 +278,17 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
                             Interlocked.Increment(ref _analogWriteCount);
                         }
                     }
-                    catch (BarrierPostPhaseException) { }
+                    catch (ObjectDisposedException) { break; }
                     catch (OperationCanceledException) { break; }
                     catch (Exception ex)
                     {
                         _logger.Error("[Dispatcher] Analog write error", ex);
                         Thread.Sleep(1); // Prevent tight error loop
+                    }
+                    finally
+                    {
+                        // Always signal done, even on error
+                        try { _analogDone.Set(); } catch { }
                     }
                 }
             }
@@ -252,17 +302,22 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
             }
         }
 
+        /// <summary>
+        /// HIGH-02 FIX: Clean shutdown sequence.
+        /// 1. Set _running=false
+        /// 2. Set _triggerEvent to wake blocked threads
+        /// 3. Join threads with timeout
+        /// 4. THEN dispose events
+        /// </summary>
         public void Stop()
         {
             if (!_running)
                 return;
 
             _running = false;
-            _cycleReady.Set(); // Wake any waiters
 
-            // Dispose barrier first to unblock threads
-            try { _syncBarrier?.Dispose(); } catch { }
-            _syncBarrier = null;
+            // Wake any blocked threads so they can check _running and exit
+            try { _triggerEvent.Set(); } catch { }
 
             if (_digitalThread != null && _digitalThread.IsAlive)
                 _digitalThread.Join(500);
@@ -278,7 +333,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
         public void Dispose()
         {
             Stop();
-            _cycleReady?.Dispose();
+            _triggerEvent?.Dispose();
+            _digitalDone?.Dispose();
+            _analogDone?.Dispose();
         }
     }
 }

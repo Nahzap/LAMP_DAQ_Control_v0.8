@@ -173,6 +173,27 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
         }
 
         /// <summary>
+        /// Initializes the digital HAL from existing SDK controller instances.
+        /// Used to share SDK handles with DeviceManager (CRIT-01 fix).
+        /// </summary>
+        public void InitializeDigitalFromExisting(Automation.BDaq.InstantDiCtrl existingDi, Automation.BDaq.InstantDoCtrl existingDo)
+        {
+            if (_disposed) throw new ObjectDisposedException(nameof(DaqEngine));
+
+            if (_digitalHal != null)
+            {
+                _digitalHal.Dispose();
+                _digitalHal = null;
+            }
+
+            _digitalHal = new AdvantechDigitalHal(_logger);
+            _digitalHal.InitializeFromExisting(existingDi, existingDo);
+            _digitalInitialized = _digitalHal.IsReady;
+
+            _logger.Info($"[DaqEngine] Digital HAL initialized from existing devices, Ready={_digitalInitialized}");
+        }
+
+        /// <summary>
         /// Initializes the analog HAL from an existing InstantAoCtrl instance.
         /// Used for backward compatibility with existing DeviceManager.
         /// </summary>

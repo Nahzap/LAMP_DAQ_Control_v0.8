@@ -100,6 +100,24 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
             set { Interlocked.Exchange(ref _requiredAnalogOutputMask, value); }
         }
 
+        /// <summary>
+        /// HIGH-03 FIX: Atomically reads and clears the digital output mask.
+        /// Prevents race condition where bits set between TriggerCycle and ClearOutputMasks were lost.
+        /// </summary>
+        public uint ConsumeDigitalOutputMask()
+        {
+            return (uint)Interlocked.Exchange(ref _requiredDigitalOutputMask, 0);
+        }
+
+        /// <summary>
+        /// HIGH-03 FIX: Atomically reads and clears the analog output mask.
+        /// Prevents race condition where bits set between TriggerCycle and ClearOutputMasks were lost.
+        /// </summary>
+        public uint ConsumeAnalogOutputMask()
+        {
+            return (uint)Interlocked.Exchange(ref _requiredAnalogOutputMask, 0);
+        }
+
         #endregion
 
         #region Digital Output State

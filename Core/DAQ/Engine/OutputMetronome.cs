@@ -113,17 +113,16 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Engine
                         if (lateTicks > Interlocked.Read(ref _maxLateTicks))
                             Interlocked.Exchange(ref _maxLateTicks, lateTicks);
 
-                        // Check if there's any pending output
-                        bool hasPendingDigital = _stateGrid.RequiredDigitalOutputMask != 0;
-                        bool hasPendingAnalog = _stateGrid.RequiredAnalogOutputMask != 0;
+                        // HIGH-03 FIX: Atomically consume masks BEFORE dispatching.
+                        // This eliminates the race where bits set between TriggerCycle()
+                        // and ClearOutputMasks() were silently lost.
+                        uint digitalMask = _stateGrid.ConsumeDigitalOutputMask();
+                        uint analogMask = _stateGrid.ConsumeAnalogOutputMask();
 
-                        if (hasPendingDigital || hasPendingAnalog)
+                        if (digitalMask != 0 || analogMask != 0)
                         {
-                            // Trigger synchronized write
-                            _dispatcher.TriggerCycle();
-
-                            // Clear output masks after dispatch
-                            _stateGrid.ClearOutputMasks();
+                            // Trigger synchronized write with consumed masks
+                            _dispatcher.TriggerCycle(digitalMask, analogMask);
                             _stateGrid.RecordOutputWrite();
 
                             Interlocked.Increment(ref _totalCycles);

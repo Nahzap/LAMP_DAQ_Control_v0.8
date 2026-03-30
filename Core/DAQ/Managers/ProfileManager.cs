@@ -105,7 +105,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                     return false;
                 }
 
-                _deviceManager.Device.LoadProfile(fullPath);
+                // HIGH-01 FIX: Use abstract LoadProfile() instead of _deviceManager.Device.LoadProfile()
+                _deviceManager.LoadProfile(fullPath);
                 _logger.Info($"Perfil cargado exitosamente desde: {fullPath}");
                 
                 // Update active profile if it's a known one
@@ -168,11 +169,14 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
             _availableProfiles["PCI-1735U"] = new DeviceProfile
             {
                 Name = "PCI-1735U",
-                Description = "Advantech PCI-1735U 16-bit Multifunction DAQ",
+                Description = "Advantech PCI-1735U Digital I/O Card",
                 FileName = "PCI1735U_prof_v1.xml",
                 HardwareIdentifiers = new[] { "PCI-1735U", "1735U" },
+                // HIGH-01 FIX: PCI-1735U is digital — V_Neg10To10 doesn't apply.
+                // Use a safe default; the range won't be applied to digital devices.
                 DefaultRange = ValueRange.V_Neg10To10,
-                ExpectedChannelCount = 4
+                // HIGH-01 FIX: 4 ports × 8 bits = 32 total channels
+                ExpectedChannelCount = 32
             };
         }
 

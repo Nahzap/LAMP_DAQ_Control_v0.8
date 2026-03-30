@@ -1,0 +1,39 @@
+{
+  "SequenceId": "34e6d785-1f53-4cbd-95e5-0099c8630ccc",
+  "Name": "TestVCO}",
+  "Description": "",
+  "DesiredDurationSeconds": 10.0,
+  "Created": "2026-03-27T10:54:27.1243076-03:00",
+  "Modified": "2026-03-27T10:54:55.9337747-03:00",
+  "Version": "1.0",
+  "Events": [
+    {
+      "EventId": "3971e1e6-d28d-4f91-9a50-c506519c796e",
+      "Name": "DC 5,0V",
+      "StartTimeNs": 0,
+      "DurationNs": 5000000000,
+      "Channel": 1,
+      "DeviceType": 1,
+      "DeviceModel": "PCIE-1824",
+      "EventType": 0,
+      "Color": "#3498DB",
+      "Parameters": {
+        "voltage": 5.0
+      }
+    },
+    {
+      "EventId": "2c02c096-695d-4fcf-aeb7-7ee47c075b74",
+      "Name": "DC 0,0V",
+      "StartTimeNs": 5000000000,
+      "DurationNs": 1000000000,
+      "Channel": 1,
+      "DeviceType": 1,
+      "DeviceModel": "PCIE-1824",
+      "EventType": 0,
+      "Color": "#3498DB",
+      "Parameters": {
+        "voltage": 0.0
+      }
+    }
+  ]
+}

@@ -77,8 +77,12 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
         
         public DeviceType CurrentDeviceType => _deviceType;
 
-        // Mantenemos esta propiedad por compatibilidad con la interfaz IDeviceManager
+        // HIGH-01: These properties are NOT on the IDeviceManager interface.
+        // They are concrete-class-only for internal use by DAQController and DaqEngine
+        // that legitimately need SDK handles for HAL initialization.
         public InstantAoCtrl Device => _analogDevice;
+        public InstantDiCtrl DigitalInputDevice => _digitalInputDevice;
+        public InstantDoCtrl DigitalOutputDevice => _digitalOutputDevice;
 
         public void InitializeDevice(int deviceNumber, string profileName = null)
         {
@@ -794,6 +798,105 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                 throw new InvalidOperationException("Device is not initialized");
         }
 
+        /// <summary>
+        /// HIGH-01: Loads an SDK profile, routing to the correct controller.
+        /// Analog devices use InstantAoCtrl.LoadProfile().
+        /// Digital devices don't use SDK profile loading.
+        /// </summary>
+        public void LoadProfile(string profilePath)
+        {
+            EnsureInitialized();
+            EnsureNotDisposed();
+
+            if (_deviceType == DeviceType.Analog && _analogDevice != null)
+            {
+                _analogDevice.LoadProfile(profilePath);
+                _logger.Info($"Profile loaded for analog device: {profilePath}");
+            }
+            else if (_deviceType == DeviceType.Digital)
+            {
+                _logger.Info($"Digital device — SDK profile loading skipped: {profilePath}");
+            }
+            else
+            {
+                _logger.Warn($"Cannot load profile — device type unknown or not ready");
+            }
+        }
+
+        /// <summary>
+        /// HIGH-01: Gets channel range info without exposing SDK types.
+        /// </summary>
+        public bool TryGetChannelInfo(int channel, out string rangeName)
+        {
+            rangeName = "Unknown";
+
+            if (!_deviceInitialized || _disposed)
+                return false;
+
+            if (_deviceType == DeviceType.Analog && _analogDevice?.Channels != null)
+            {
+                if (channel >= 0 && channel < _analogDevice.Channels.Length)
+                {
+                    try
+                    {
+                        rangeName = _analogDevice.Channels[channel].ValueRange.ToString();
+                        return true;
+                    }
+                    catch { return false; }
+                }
+            }
+            else if (_deviceType == DeviceType.Digital)
+            {
+                int port = channel / 8;
+                int bit = channel % 8;
+                rangeName = $"Digital Port{port} Bit{bit}";
+                return channel >= 0 && channel < ChannelCount;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// HIGH-01: Resets all outputs to safe defaults.
+        /// Route-aware for both analog and digital.
+        /// </summary>
+        public void ResetAllOutputs()
+        {
+            if (!_deviceInitialized || _disposed)
+                return;
+
+            try
+            {
+                if (_deviceType == DeviceType.Analog && _analogDevice != null)
+                {
+                    int count = _analogDevice.ChannelCount;
+                    for (int i = 0; i < count; i++)
+                    {
+                        try { _analogDevice.Write(i, 0.0); }
+                        catch { }
+                    }
+                    _logger.Info($"All {count} analog channels reset to 0V");
+                }
+                else if (_deviceType == DeviceType.Digital && _digitalOutputDevice != null)
+                {
+                    int ports = _digitalOutputDevice.PortCount;
+                    for (int p = 0; p < ports; p++)
+                    {
+                        try { _digitalOutputDevice.Write(p, (byte)0); }
+                        catch { }
+                    }
+                    _logger.Info($"All {ports} digital output ports reset to 0x00");
+                }
+            }
+            catch (Exception ex)
+            {
+                _logger.Error("Error resetting outputs", ex);
+            }
+        }
+
+
+        #region Dispose
+
         private void EnsureNotDisposed()
         {
             if (_disposed)
@@ -880,5 +983,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
         {
             Dispose(false);
         }
+
+        #endregion
     }
 }

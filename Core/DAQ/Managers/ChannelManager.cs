@@ -7,7 +7,9 @@ using LAMP_DAQ_Control_v0_8.Core.DAQ.Services;
 namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
 {
     /// <summary>
-    /// Manages channel operations for DAQ devices
+    /// Manages channel operations for DAQ devices.
+    /// HIGH-01 FIX: No longer accesses _deviceManager.Device (InstantAoCtrl).
+    /// Uses abstract IDeviceManager methods that route correctly for both analog and digital.
     /// </summary>
     public class ChannelManager : IChannelManager
     {
@@ -26,19 +28,23 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
             if (!_deviceManager.IsInitialized)
                 throw new InvalidOperationException("Device is not initialized");
 
-            var device = _deviceManager.Device;
-            if (device.Channels == null || device.Channels.Length == 0)
-                return Array.Empty<ChannelState>();
-            
             var states = new List<ChannelState>();
-            
-            for (int i = 0; i < device.Channels.Length; i++)
+            int channelCount = _deviceManager.ChannelCount;
+
+            if (channelCount == 0)
+                return Array.Empty<ChannelState>();
+
+            for (int i = 0; i < channelCount; i++)
             {
                 try
                 {
-                    // The Advantech PCIe-1824 doesn't support reading back analog output values
                     bool isActive = signalGenerator.IsChannelActive(i);
-                    string range = device.Channels[i].ValueRange.ToString();
+                    
+                    // HIGH-01 FIX: Use TryGetChannelInfo() instead of _deviceManager.Device.Channels[i]
+                    string range;
+                    if (!_deviceManager.TryGetChannelInfo(i, out range))
+                        range = "Unknown";
+
                     states.Add(new ChannelState(i, 0.0, range, isActive));
                 }
                 catch (Exception ex)
@@ -47,7 +53,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
                     states.Add(new ChannelState(i, 0.0, "Unknown", false));
                 }
             }
-            
+
             return states;
         }
 
@@ -63,19 +69,8 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Managers
 
             try
             {
-                var device = _deviceManager.Device;
-                for (int i = 0; i < device.ChannelCount; i++)
-                {
-                    try
-                    {
-                        device.Write(i, 0.0);
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.Warn($"Error resetting channel {i}: {ex.Message}");
-                    }
-                }
-                
+                // HIGH-01 FIX: Use abstract ResetAllOutputs() instead of _deviceManager.Device.Write()
+                _deviceManager.ResetAllOutputs();
                 _logger.Info("All channels reset to default values");
             }
             catch (Exception ex)

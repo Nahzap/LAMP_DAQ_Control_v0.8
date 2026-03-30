@@ -45,5 +45,16 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Interfaces
         /// <param name="channel">Channel number to check</param>
         /// <returns>True if the channel is active, false otherwise</returns>
         bool IsChannelActive(int channel);
+        
+        /// <summary>
+        /// HIGH-04: Prepares a phase synchronization barrier for N parallel waveforms.
+        /// Must be called before launching parallel waveform starts.
+        /// </summary>
+        void PreparePhaseBarrier(int participantCount);
+        
+        /// <summary>
+        /// HIGH-04: Clears the phase synchronization barrier after waveforms have started.
+        /// </summary>
+        void ClearPhaseBarrier();
     }
 }

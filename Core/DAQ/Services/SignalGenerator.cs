@@ -5,8 +5,8 @@ using System.IO;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
-using Automation.BDaq;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Exceptions;
+using LAMP_DAQ_Control_v0_8.Core.DAQ.HAL;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Interfaces;
 
 namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
@@ -16,7 +16,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
     /// </summary>
     public class SignalGenerator : ISignalGenerator
     {
-        private readonly InstantAoCtrl _device;
+        private readonly IAnalogHal _hal;
         private readonly ILogger _logger;
         private bool _disposed;
         private int _currentChannel = -1;
@@ -33,13 +33,16 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         private static readonly double _ticksToNanoseconds;
         
         // CRITICAL: Pre-parsed LUT values cached as double[] for zero-allocation hot loop
-        private static double[] _cachedNormalizedValues = null;
+        // HIGH-04 FIX: volatile ensures cross-thread visibility of the array reference
+        private static volatile double[] _cachedNormalizedValues = null;
         private static int _cachedLutSize = 0;
         private static readonly object _lutCacheLock = new object();
         
         // PHASE SYNC: Barrier for synchronized waveform start across multiple channels
-        private static Barrier _phaseBarrier = null;
-        private static readonly object _barrierLock = new object();
+        // HIGH-04 FIX: Moved from static to instance to prevent corruption between multiple
+        // SignalGenerator instances preparing barriers simultaneously
+        private Barrier _phaseBarrier = null;
+        private readonly object _barrierLock = new object();
         
         static SignalGenerator()
         {
@@ -52,9 +55,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         /// </summary>
         /// <param name="device">The DAQ device to use</param>
         /// <param name="logger">Logger instance</param>
-        public SignalGenerator(InstantAoCtrl device, ILogger logger = null)
+        public SignalGenerator(IAnalogHal analogHal, ILogger logger = null)
         {
-            _device = device ?? throw new ArgumentNullException(nameof(device));
+            _hal = analogHal ?? throw new ArgumentNullException(nameof(analogHal));
             _logger = logger ?? new ConsoleLogger();
         }
 
@@ -64,7 +67,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         public void Start(int channel, double frequency, double amplitude, double offset)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SignalGenerator));
-            if (channel < 0 || _device.Channels == null || channel >= _device.Channels.Length)
+            if (channel < 0 || channel >= _hal.ChannelCount)
                 throw new ArgumentOutOfRangeException(nameof(channel));
             if (frequency <= 0) throw new ArgumentOutOfRangeException(nameof(frequency), "Frequency must be greater than zero");
             if (amplitude <= 0) throw new ArgumentOutOfRangeException(nameof(amplitude), "Amplitude must be greater than zero");
@@ -158,7 +161,11 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         /// Prepares a phase synchronization barrier for N parallel waveforms
         /// CRITICAL: Call this before launching parallel waveforms, then call Start() on each channel
         /// </summary>
-        public static void PreparePhaseBarrier(int participantCount)
+        /// <summary>
+        /// HIGH-04 FIX: Now an instance method instead of static.
+        /// Each SignalGenerator instance manages its own phase barrier.
+        /// </summary>
+        public void PreparePhaseBarrier(int participantCount)
         {
             lock (_barrierLock)
             {
@@ -170,7 +177,10 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         /// <summary>
         /// Clears the phase barrier after parallel waveforms have started
         /// </summary>
-        public static void ClearPhaseBarrier()
+        /// <summary>
+        /// HIGH-04 FIX: Now an instance method instead of static.
+        /// </summary>
+        public void ClearPhaseBarrier()
         {
             lock (_barrierLock)
             {
@@ -228,7 +238,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                     }
                     
                     // Reset the channel to 0V
-                    _device.Write(channel, 0.0);
+                    _hal.WriteSingle(channel, 0.0);
                     
                     _logger.Debug($"Signal generation stopped on channel {channel}");
                 }
@@ -245,12 +255,12 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         public void SetDcValue(int channel, double value)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SignalGenerator));
-            if (channel < 0 || _device.Channels == null || channel >= _device.Channels.Length)
+            if (channel < 0 || channel >= _hal.ChannelCount)
                 throw new ArgumentOutOfRangeException(nameof(channel));
 
             try
             {
-                _device.Write(channel, value);
+                _hal.WriteSingle(channel, value);
                 
                 // Track last written value (thread-safe)
                 lock (_lastWrittenValuesLock)
@@ -274,7 +284,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SignalGenerator));
             if (durationMs <= 0) throw new ArgumentOutOfRangeException(nameof(durationMs));
-            if (channel < 0 || _device.Channels == null || channel >= _device.Channels.Length)
+            if (channel < 0 || channel >= _hal.ChannelCount)
                 throw new ArgumentOutOfRangeException(nameof(channel));
 
             try
@@ -306,11 +316,11 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                     
                     long targetTicks = (i + 1) * stepDelayTicks;
                     currentValue += voltageStep;
-                    _device.Write(channel, currentValue);
+                    _hal.WriteSingle(channel, currentValue);
                     await HighPrecisionWaitAsync(rampTimer, targetTicks);
                 }
 
-                _device.Write(channel, targetValue);
+                _hal.WriteSingle(channel, targetValue);
                 
                 // Thread-safe update of last written value
                 lock (_lastWrittenValuesLock)
@@ -378,12 +388,9 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
             try
             {
                 Stop();
-                if (_device.Channels != null)
+                for (int i = 0; i < _hal.ChannelCount; i++)
                 {
-                    for (int i = 0; i < _device.Channels.Length; i++)
-                    {
-                        _device.Write(i, 0.0);
-                    }
+                    _hal.WriteSingle(i, 0.0);
                 }
                 _logger.Info("All outputs reset to 0V");
             }
@@ -402,11 +409,14 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
         public bool IsChannelActive(int channel)
         {
             if (_disposed) throw new ObjectDisposedException(nameof(SignalGenerator));
-            if (channel < 0 || _device.Channels == null || channel >= _device.Channels.Length)
+            if (channel < 0 || channel >= _hal.ChannelCount)
                 throw new ArgumentOutOfRangeException(nameof(channel));
 
-            // Un canal se considera activo si está en el diccionario de canales activos
-            return _activeChannels.ContainsKey(channel);
+            // CRIT-FIX: Thread-safe access to _activeChannels
+            lock (_activeChannelsLock)
+            {
+                return _activeChannels.ContainsKey(channel);
+            }
         }
 
         #region IDisposable Implementation
@@ -514,7 +524,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                 }
                 
                 // OPTIMIZACIÓN: Escribir valor inicial directamente sin delays
-                _device.Write(channel, offset);
+                _hal.WriteSingle(channel, offset);
                 
                 // ===== PRE-COMPUTE EVERYTHING BEFORE BARRIER =====
                 const double TARGET_SAMPLE_RATE = 100000.0; // 100 kHz
@@ -529,6 +539,19 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                 
                 _logger.Info($"Starting sine wave generation on channel {channel}: {frequency}Hz, {amplitude}V amplitude, {offset}V offset");
                 _logger.Info($"Using {samplesPerCycle} samples per cycle at {sampleRate:F0} samples/sec for {frequency}Hz signal");
+                
+                // MED-03 FIX: Read actual voltage range from HAL instead of hardcoding 0-10V
+                double minVoltage = 0.0, maxVoltage = 10.0;
+                if (_hal.GetChannelVoltageRange(channel, out double minV, out double maxV))
+                {
+                    minVoltage = minV;
+                    maxVoltage = maxV;
+                    _logger.Info($"[MED-03] Channel {channel} voltage range from SDK: [{minVoltage:F1}V, {maxVoltage:F1}V]");
+                }
+                else
+                {
+                    _logger.Warn($"[MED-03] Could not read voltage range for channel {channel}, using default [{minVoltage:F1}V, {maxVoltage:F1}V]");
+                }
                 
                 // Start stopwatch BEFORE barrier so ElapsedTicks is available immediately after release
                 var stopwatch = new System.Diagnostics.Stopwatch();
@@ -580,10 +603,11 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ.Services
                         
                         // Convertir a voltaje de salida (aplicando amplitud y offset)
                         double sineValue = (normalizedValue * 2.0) - 1.0; // Convertir [0,1] a [-1,1]
-                        double outputVoltage = Math.Max(0.0, Math.Min(10.0, (sineValue * amplitude) + offset));
+                        // MED-03 FIX: Use SDK-read voltage range instead of hardcoded 0-10V
+                        double outputVoltage = Math.Max(minVoltage, Math.Min(maxVoltage, (sineValue * amplitude) + offset));
                         
                         // Escribir al DAC
-                        _device.Write(channel, outputVoltage);
+                        _hal.WriteSingle(channel, outputVoltage);
                         
                         // ABSOLUTE TIMING: Target time computed from epoch, not per-cycle start
                         totalSampleCount++;

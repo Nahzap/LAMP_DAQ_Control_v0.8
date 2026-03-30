@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Automation.BDaq;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Exceptions;
+using LAMP_DAQ_Control_v0_8.Core.DAQ.HAL;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Interfaces;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Managers;
 using LAMP_DAQ_Control_v0_8.Core.DAQ.Models;
@@ -19,11 +20,14 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
     {
         #region Fields
         private readonly IDeviceManager _deviceManager;
+        private readonly DeviceManager _concreteDeviceManager; // HIGH-01: Typed access for SDK handles
         private readonly IProfileManager _profileManager;
         private readonly IChannelManager _channelManager;
         private ISignalGenerator _signalGenerator; // Not readonly - recreated on device switch
         private readonly ILogger _logger;
         private DaqEngine _engine; // High-performance parallel engine (optional)
+        private AdvantechAnalogHal _sharedAnalogHal;   // CRIT-01: Single HAL shared by SignalGenerator + DaqEngine
+        private AdvantechDigitalHal _sharedDigitalHal;  // CRIT-01: Single HAL shared by DaqEngine
         private bool _disposed;
         #endregion
         
@@ -48,10 +52,36 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
                 _logger = logger ?? new ConsoleLogger();
                 
                 // Initialize device manager
-                _deviceManager = deviceManager ?? new DeviceManager(_logger);
+                if (deviceManager != null)
+                {
+                    _deviceManager = deviceManager;
+                    _concreteDeviceManager = deviceManager as DeviceManager;
+                }
+                else
+                {
+                    var dm = new DeviceManager(_logger);
+                    _deviceManager = dm;
+                    _concreteDeviceManager = dm;
+                }
                 
                 // Initialize signal generator if not provided
-                _signalGenerator = signalGenerator ?? new SignalGenerator(_deviceManager.Device, _logger);
+                // CRIT-03: SignalGenerator now receives IAnalogHal instead of raw InstantAoCtrl
+                if (signalGenerator != null)
+                {
+                    _signalGenerator = signalGenerator;
+                }
+                else if (_concreteDeviceManager != null)
+                {
+                    _sharedAnalogHal = new AdvantechAnalogHal(_logger);
+                    _sharedAnalogHal.InitializeFromExisting(_concreteDeviceManager.Device);
+                    _signalGenerator = new SignalGenerator(_sharedAnalogHal, _logger);
+                }
+                else
+                {
+                    // Fallback: create a dummy signal generator
+                    _sharedAnalogHal = new AdvantechAnalogHal(_logger);
+                    _signalGenerator = new SignalGenerator(_sharedAnalogHal, _logger);
+                }
                 
                 // Initialize profile manager
                 _profileManager = profileManager ?? new ProfileManager(_deviceManager, _logger);
@@ -138,10 +168,35 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
                 // Initialize the device with profile name to help determine device type
                 _deviceManager.InitializeDevice(deviceNumber, profileName);
                 
-                // CRITICAL FIX: Recreate SignalGenerator after device initialization
-                // because device switching disposes old controllers and creates new ones
-                _signalGenerator = new SignalGenerator(_deviceManager.Device, _logger);
-                _logger.Info("SignalGenerator recreated with new device instance");
+                // CRIT-01/03: Recreate shared HAL and SignalGenerator after device switch
+                // HAL wraps DeviceManager's SDK instance — single owner, no duplication
+                if (_sharedAnalogHal != null)
+                {
+                    _sharedAnalogHal.Dispose();
+                }
+                _sharedAnalogHal = new AdvantechAnalogHal(_logger);
+                // HIGH-01: Use concrete DeviceManager for SDK handle access
+                if (_concreteDeviceManager != null)
+                {
+                    _sharedAnalogHal.InitializeFromExisting(_concreteDeviceManager.Device);
+                }
+                _signalGenerator = new SignalGenerator(_sharedAnalogHal, _logger);
+                _logger.Info("Shared AnalogHAL + SignalGenerator recreated with device instance");
+
+                // Also create/refresh digital HAL if device is digital
+                if (_deviceManager.CurrentDeviceType == DeviceType.Digital && _concreteDeviceManager != null)
+                {
+                    if (_sharedDigitalHal != null)
+                    {
+                        _sharedDigitalHal.Dispose();
+                    }
+                    _sharedDigitalHal = new AdvantechDigitalHal(_logger);
+                    // HIGH-01: Use concrete DeviceManager for SDK handle access
+                    _sharedDigitalHal.InitializeFromExisting(
+                        _concreteDeviceManager.DigitalInputDevice, 
+                        _concreteDeviceManager.DigitalOutputDevice);
+                    _logger.Info("Shared DigitalHAL created from DeviceManager instances");
+                }
                 
                 // Verificar que el perfil sea compatible con el tipo de dispositivo detectado
                 var deviceInfo = _deviceManager.GetDeviceInfo();
@@ -378,13 +433,44 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
             _engine = new DaqEngine(_logger);
             _engine.OutputIntervalMicroseconds = outputIntervalUs;
 
+            // CRIT-01: Always use shared HALs from DeviceManager's SDK instances.
+            // Never let DaqEngine create its own SDK instances (avoids dual-handle problem).
             if (digitalDeviceNumber >= 0)
-                _engine.InitializeDigital(digitalDeviceNumber);
+            {
+                // If DeviceManager has digital devices initialized, share them
+                if (_deviceManager.IsInitialized && _deviceManager.CurrentDeviceType == DeviceType.Digital 
+                    && _concreteDeviceManager?.DigitalInputDevice != null)
+                {
+                    _engine.InitializeDigitalFromExisting(
+                        _concreteDeviceManager.DigitalInputDevice, 
+                        _concreteDeviceManager.DigitalOutputDevice);
+                }
+                else
+                {
+                    // Fallback: no DeviceManager digital devices, let engine create its own
+                    _engine.InitializeDigital(digitalDeviceNumber);
+                }
+            }
 
             if (analogDeviceNumber >= 0)
-                _engine.InitializeAnalog(analogDeviceNumber);
-            else if (_deviceManager.IsInitialized && _deviceManager.CurrentDeviceType == DeviceType.Analog && _deviceManager.Device != null)
-                _engine.InitializeAnalogFromExisting(_deviceManager.Device);
+            {
+                // If DeviceManager has analog device initialized, share it
+                if (_deviceManager.IsInitialized && _deviceManager.CurrentDeviceType == DeviceType.Analog 
+                    && _concreteDeviceManager?.Device != null)
+                {
+                    _engine.InitializeAnalogFromExisting(_concreteDeviceManager.Device);
+                }
+                else
+                {
+                    // Fallback: no DeviceManager analog device, let engine create its own
+                    _engine.InitializeAnalog(analogDeviceNumber);
+                }
+            }
+            else if (_deviceManager.IsInitialized && _deviceManager.CurrentDeviceType == DeviceType.Analog 
+                     && _concreteDeviceManager?.Device != null)
+            {
+                _engine.InitializeAnalogFromExisting(_concreteDeviceManager.Device);
+            }
 
             _engine.Start();
             _logger.Info($"DaqEngine started (Digital={_engine.HasDigital}, Analog={_engine.HasAnalog})");
@@ -475,6 +561,10 @@ namespace LAMP_DAQ_Control_v0_8.Core.DAQ
                     
                     // Reset all channels
                     _channelManager?.ResetAllChannels();
+                    
+                    // Dispose shared HALs (they don't own SDK instances, just release wrappers)
+                    _sharedAnalogHal?.Dispose();
+                    _sharedDigitalHal?.Dispose();
                     
                     // Dispose managers and services
                     (_deviceManager as IDisposable)?.Dispose();

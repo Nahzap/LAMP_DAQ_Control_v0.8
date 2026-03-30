@@ -6,13 +6,15 @@ Controlador Top-Tier y Plataforma de Ejecución Real-Time para tarjetas de adqui
 
 Proveer una solución centralizada de alto rendimiento que permita el pilotaje preciso, la sincronización microsegundo y la generación paralela de secuencias de control analógicas y digitales masivas, abstrayendo las complejidades del hardware Advantech DAQNavi bajo una UX amigable tipo "Línea de Tiempo" (Timeline).
 
+> **Novedad v0.8.1 (Marzo 2026)**: Auditoría arquitectónica completada (Semanas 1-5). Motor de concurrencia refactorizado con patrones atómicos (`Interlocked.Exchange`), `ManualResetEventSlim` eliminando los deadlocks/desyncs del `Barrier` anterior, mejoras determinísticas de hardware, y abstracción robusta de los SDK de Advantech (`InstantAoCtrl`, `InstantDiCtrl`, `InstantDoCtrl`).
+
 ## 🚀 Características Principales y Capacidades
 
 ### 1. 🆕 Data-Oriented Execution Engine (DOD)
 La versión 0.8 abandonó la antigua arquitectura de objetos instanciados para adoptar un núcleo **Cache-Friendly** y **Column-Oriented**:
 - **Zero Cumulative Error**: Uso de Time Horizons absolutos atados a ticks de procesador (QPC) que previenen la deriva temporal matemática observada habitualmente en el Kernel de Windows.
-- **Micro-Sleeps Híbridos**: Algoritmo `HighPrecisionWaitAsync` que intercala inteligentemente `Task.Delay` y `SpinWait` bloqueando el cese al SO si los tiempos son <20ms para alcanzar precisión Atómica.
-- **Ejecución Totalmente Paralela (Task.WhenAll)**: Múltiples Waveforms, Rampas y Trenes de Pulso se despachan y sincronizan de forma paralela usando `Barrier` para levantar decenas de transistores en la DAQ con diferencias de fase nulas.
+- **Micro-Sleeps Híbridos**: Algoritmo `HighPrecisionWaitAsync` que intercala inteligentemente `Task.Delay` y `SpinWait` bloqueando el cese al SO si los tiempos son <20ms para alcanzar precisión atómica.
+- **Ejecución Totalmente Paralela (Sincronizada por Eventos)**: Múltiples Waveforms, Rampas y Trenes de Pulso se despachan de forma paralela usando patrones de `ManualResetEventSlim` para levantar decenas de transistores en la DAQ con diferencias de fase nulas.
 
 ### 2. Controladores de Hardware Potenciados
 #### Advantech PCIe-1824 (High-Density Analog Output)

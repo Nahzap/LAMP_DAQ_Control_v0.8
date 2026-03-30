@@ -14,7 +14,7 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
     /// Data-Oriented execution engine that operates directly on SignalTable.
     /// Optimized for cache-friendly iteration and high-performance execution.
     /// </summary>
-    public class DataOrientedExecutionEngine
+    public class DataOrientedExecutionEngine : IDisposable
     {
         private readonly Dictionary<string, DAQController> _deviceControllers;
         private SignalTable _currentTable;
@@ -256,7 +256,23 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
                 {
                     System.Console.WriteLine($"[PHASE SYNC] Detected {waveformCount} parallel waveforms - preparing synchronization");
                     DAQ.Services.SignalGenerator.PreloadLutCache();
-                    DAQ.Services.SignalGenerator.PreparePhaseBarrier(waveformCount);
+                    
+                    // HIGH-04 FIX: Use instance method instead of static to prevent barrier
+                    // corruption between multiple SignalGenerator instances
+                    string waveformDeviceModel = null;
+                    foreach (int idx in groupIndices)
+                    {
+                        if (table.EventTypes[idx] == SignalEventType.Waveform)
+                        {
+                            waveformDeviceModel = table.DeviceModels[idx];
+                            break;
+                        }
+                    }
+                    if (waveformDeviceModel != null && _deviceControllers.TryGetValue(waveformDeviceModel, out var wfController))
+                    {
+                        var signalGen = wfController.GetSignalGenerator();
+                        signalGen?.PreparePhaseBarrier(waveformCount);
+                    }
                 }
                 
                 // CRITICAL SYNC: Pre-calculate an exact execution horizon where all Task.Run threads will wait for
@@ -726,6 +742,26 @@ namespace LAMP_DAQ_Control_v0_8.Core.SignalManager.DataOriented
             while (_executionTimer.ElapsedTicks < targetTicks && !cancellationToken.IsCancellationRequested)
             {
                 spinner.SpinOnce();
+            }
+        }
+
+        /// <summary>
+        /// LOW-03 FIX: Implements IDisposable for deterministic cleanup.
+        /// Ensures CancellationTokenSource, Timer, and pending tasks are cleaned up.
+        /// </summary>
+        public void Dispose()
+        {
+            Stop();
+            _cts?.Dispose();
+            _cts = null;
+            _playheadUpdateTimer?.Dispose();
+            _playheadUpdateTimer = null;
+            _executionTimer?.Stop();
+            _executionTimer = null;
+
+            lock (_waveformStopsLock)
+            {
+                _pendingWaveformStops.Clear();
             }
         }
     }
